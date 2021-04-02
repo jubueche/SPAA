@@ -1,0 +1,9 @@
+**/Test
+**/Train
+**/test_DS
+**/train_DS
+**/.vscode
+**/.ipynb_checkpoints
+**/test_Files.zip
+**/train_Files.zip
+**/__pycache__
