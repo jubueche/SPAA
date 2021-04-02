@@ -14,7 +14,7 @@ nmnist_dataloader = NMNISTDataLoader()
 ann = train_ann_mnist()
 
 # - Turn into spiking prob net
-prob_net = get_prob_net()
+prob_net = get_prob_net().to(device)
 
 data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1, dt=3000)
 
@@ -57,6 +57,7 @@ for i in range(N_eval):
         correct.append(1.0)
 print("Evaluation accuracy",float(sum(correct)/N_eval))
 
+breakpoint()
 plot_attacked_prob(
     P_adv,
     target,
