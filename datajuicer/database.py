@@ -30,6 +30,10 @@ def select(db_file, column, table, where, order_by):
 
 def insert(db_file, table, row, primary_key):
     table = '\"' + table + '\"'
+    try:
+        row.pop('')
+    except:
+        pass
     fieldset = []
     for key, val in row.items():
         if type(val) == int:

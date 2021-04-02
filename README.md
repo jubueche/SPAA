@@ -1,4 +1,9 @@
 # SPAA
-Spiking Probabilistic Adversarial Attack
+Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 
-This is a test
+## Setup
+- Install cleverhans from https://github.com/jubueche/cleverhans using ```git clone https://github.com/jubueche/cleverhans```, ```cd cleverhans``` and ```pip install -e .```
+- Install Sinabs ```pip install sinabs```
+- Install pytorch ```pip install torch```
+
+## Setting up a new experiment

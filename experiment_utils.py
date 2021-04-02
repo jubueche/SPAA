@@ -1,11 +1,20 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+import pathlib
+from dataloader_NMNIST import NMNISTDataLoader
+from sinabs.from_torch import from_model
+from sinabs.utils import normalize_weights
 from videofig import videofig
 from sinabs.network import Network as SinabsNetwork
 from cleverhans.torch.utils import clip_eta
 from cleverhans.torch.utils import optimize_linear
 from cleverhans.torch.attacks.fast_gradient_method import _fast_gradient_method_grad
+
+# - Set device
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -258,3 +267,109 @@ def plot_attacked_prob(
         grid_specs={'nrows': N_rows, 'ncols': N_cols},
         block=block,
         figname=figname)
+
+def get_ann_arch():
+    """
+    Generate ann architecture and return
+    """
+    # - Create sequential model
+    ann = nn.Sequential(
+        nn.Conv2d(2, 20, 5, 1, bias=False),
+        nn.ReLU(),
+        nn.AvgPool2d(2,2),
+        nn.Conv2d(20, 32, 5, 1, bias=False),
+        nn.ReLU(),
+        nn.AvgPool2d(2,2),
+        nn.Conv2d(32, 128, 3, 1, bias=False),
+        nn.ReLU(),
+        nn.AvgPool2d(2,2),
+        nn.Flatten(),
+        nn.Linear(128, 500, bias=False),
+        nn.ReLU(),
+        nn.Linear(500, 10, bias=False),
+    )
+    ann = ann.to(device)
+    return ann
+
+def load_ann(path):
+    """
+    Tries to load ann from path, returns None if not successful
+    """
+    if isinstance(path, str):
+        path = pathlib.Path(path)
+    ann = get_ann_arch()
+    if not path.exists():
+        return None
+    else:
+        ann.load_state_dict(torch.load(path))
+        return ann
+
+def get_prob_net(ann = None):
+    """
+    Transform the continuous network into spiking network using the sinabs framework.
+    Generate the ann if the passed ann is None.
+    Normalize the weights and increase initial weights by mult. factor. Create prob. network and return.
+    """
+    if ann == None:
+        ann = train_ann_mnist() 
+
+    # - Create data loader
+    nmnist_dataloader = NMNISTDataLoader()
+
+    data_loader_test = nmnist_dataloader.get_data_loader(dset="test", mode="ann", batch_size=64)
+
+    # - Get single batch
+    for data, target in data_loader_test:
+        break
+
+    # - Normalize weights
+    normalize_weights(
+        ann.cpu(), 
+        torch.tensor(data).float(),
+        output_layers=['1','4','7','11'],
+        param_layers=['0','3','6','10','12'])
+
+    # - Create spiking model
+    input_shape = (2, 34, 34)
+    model = from_model(ann, input_shape=input_shape, add_spiking_output=True)
+
+    # - Create probabilistic network
+    prob_net = ProbNetwork(
+            ann,
+            model.spiking_model,
+            input_shape=input_shape
+        )
+    prob_net.spiking_model[0].weight.data *= 7
+    return prob_net
+
+def train_ann_mnist():
+    """
+    Checks if model exists. If not, train and store. Return model.
+    """
+    # - Create data loader
+    nmnist_dataloader = NMNISTDataLoader()
+
+    # - Set the seed
+    torch.manual_seed(42)
+
+    # - Setup path
+    path = nmnist_dataloader.path / "N-MNIST/mnist_ann.pt"
+
+    ann = load_ann(path)
+    if ann == None:
+        ann = get_ann_arch()
+        data_loader_train = nmnist_dataloader.get_data_loader(dset="train", mode="ann", shuffle=True, num_workers=4, batch_size=64)
+        optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
+        n_epochs = 1
+        for n in range(n_epochs):
+            for data, target in data_loader_train:
+                data, target = data.to(device), target.to(device) # GPU
+                output = ann(data)
+                optim.zero_grad()
+                loss = F.cross_entropy(output, target)
+                loss.backward()
+                optim.step()
+                pred = output.argmax(dim=1, keepdim=True)
+                correct = pred.eq(target.view_as(pred)).sum().item()
+        torch.save(ann.state_dict(), path)
+    return ann

@@ -45,7 +45,8 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
                     dependencies[dep_name] = get(boundargs.arguments[arg], key)
                 else:
                     dependencies[dep_name] = boundargs.arguments[dep_name]
-
+            if dependencies == {}:
+                dependencies = {"":""}
             session_ids = database.select(db_file = os.path.join(cache_dir, "sessions.db"),column = "session_id", table = func.table_name, where= dependencies, order_by="start_time")
             sid = None
             for session_id in session_ids:
@@ -75,7 +76,7 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
             
             if store_key is None:
                 return ret
-            elif store_key == "*":
+            elif store_key == "*" and not ret == None:
                 data.update(ret)
                 return data
             else:
