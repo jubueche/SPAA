@@ -77,7 +77,7 @@ class NMNIST:
         d["mk_data_dir"] = mk_data_dir
         d["data_dir"] = "{mk_data_dir({mode})}"
         d["code_file"] = "main_NMNIST.py"
-        d["architecture"] = "nmnist_cnn"
+        d["architecture"] = "NMNIST"
         d["train"] = mk_runner(NMNIST, ["data_dir"])
         return d
 
