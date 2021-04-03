@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import pathlib
@@ -11,7 +10,7 @@ from videofig import videofig
 from sinabs.network import Network as SinabsNetwork
 from cleverhans.torch.utils import clip_eta
 from cleverhans.torch.utils import optimize_linear
-from cleverhans.torch.attacks.fast_gradient_method import _fast_gradient_method_grad
+from cleverhans_additions import _fast_gradient_method_grad
 from datajuicer import cachable
 
 # - Set device
@@ -54,7 +53,7 @@ def reparameterization_bernoulli(
     """
     # - Avoid -inf
     eps = 1e-20
-    rand_unif = torch.rand(P.size())
+    rand_unif = torch.rand(P.size(), device=P.device)
     X = torch.sigmoid((torch.log(rand_unif+eps)-torch.log(1-rand_unif+eps)+torch.log(P+eps)-torch.log(1-P+eps))/temperature)
     return X
 
@@ -66,7 +65,7 @@ def loss_fn(
     Loss function used to find the adversarial probabilities
     """
     outputs = torch.reshape(torch.sum(spike_out,axis=0), (1,10))
-    target = torch.tensor([target])
+    target = torch.tensor([target], device=spike_out.device)
     return F.cross_entropy(outputs, target)
 
 def get_grad(
@@ -108,8 +107,8 @@ def get_mc_P_adv(
     g = 0.0
     for j in range(N_MC):
         g += 1 / N_MC * get_grad(prob_net, P_adv, eps_iter, norm, model_pred, loss_fn)
-    eta = optimize_linear(g, eps_iter, norm)    
-    P_adv = P_adv + eta    
+    eta = optimize_linear(g, eps_iter, norm)
+    P_adv = P_adv + eta
     return P_adv
 
 def prob_attack_pgd(
@@ -139,12 +138,13 @@ def prob_attack_pgd(
     model_pred = get_prediction(prob_net, P0, mode="prob")
 
     # - Calculate initial perturbation
-    eta = torch.zeros_like(P0).uniform_(-rand_minmax, rand_minmax)
+    eta = torch.zeros_like(P0).uniform_(0, rand_minmax)
     # - Clip initial perturbation
-    eta = clip_eta(eta, norm, eps) 
-    P_adv = P0 + eta
+    eta = clip_eta(eta, norm, eps)
+    # P_adv = P0 + eta
+    P_adv = P0 * (1 - eta) + (1 - P0) * eta
     # - Clip for probabilities
-    P_adv = torch.clamp(P_adv, 0.0, 1.0) 
+    P_adv = torch.clamp(P_adv, 0.0, 1.0)
 
     # - PGD steps
     for i in range(N_pgd):
@@ -161,7 +161,7 @@ def prob_attack_pgd(
         P_adv = P0 + eta
         # - Clamp again to probabilities
         P_adv = torch.clamp(P_adv, 0.0, 1.0)
-    
+
     return P_adv
 
 def get_prediction(
@@ -181,7 +181,7 @@ def get_prediction(
         assert mode in ["prob","non_prob"], "Unknown mode"
     output = output.sum(axis=0)
     pred = output.argmax()
-    return pred
+    return pred.cpu()
 
 def get_test_acc(
     net,
@@ -189,7 +189,7 @@ def get_test_acc(
     limit=-1
 ):
     """
-    Calculate test accuracy for data in dataloader. Limit -1 equals all data. 
+    Calculate test accuracy for data in dataloader. Limit -1 equals all data.
     """
     acc = []
     for data, target in dataloader:
@@ -228,7 +228,7 @@ class Redraw(object):
             ax.set_ylabel(f"Pred {str(float(self.pred))}")
             for axis in ['top','bottom','left','right']:
                 ax.spines[axis].set_linewidth(2.5)
-                ax.spines[axis].set_color(self.color)    
+                ax.spines[axis].set_color(self.color)
             ax.set_yticks([])
             ax.set_xticks([])
             self.im = ax.imshow(self.data[0])
@@ -253,7 +253,7 @@ def plot_attacked_prob(
     def redraw_fn(f, axes):
         for i in range(len(redraw_fn.sub)):
             redraw_fn.sub[i].draw(f, axes[i])
-    
+
     data = []
     for i in range(N_rows * N_cols):
         image = torch.round(reparameterization_bernoulli(P_adv, temperature=prob_net.temperature))
@@ -261,14 +261,14 @@ def plot_attacked_prob(
         pred = get_prediction(prob_net, image, "non_prob")
         store_image = torch.clamp(torch.sum(image, 1), 0.0, 1.0)
         assert ((store_image == 0.0) | (store_image == 1.0)).all()
-        data.append((store_image,pred))
+        data.append((store_image.cpu(), pred))
 
     redraw_fn.sub = [Redraw(el[0],el[1],target) for el in data]
 
     videofig(
         num_frames=100,
         play_fps=50,
-        redraw_func=redraw_fn, 
+        redraw_func=redraw_fn,
         grid_specs={'nrows': N_rows, 'ncols': N_cols},
         block=block,
         figname=figname)
@@ -316,7 +316,7 @@ def get_prob_net(ann = None):
     Normalize the weights and increase initial weights by mult. factor. Create prob. network and return.
     """
     if ann == None:
-        ann = train_ann_mnist() 
+        ann = train_ann_mnist()
 
     # - Create data loader
     nmnist_dataloader = NMNISTDataLoader()
@@ -329,7 +329,7 @@ def get_prob_net(ann = None):
 
     # - Normalize weights
     normalize_weights(
-        ann.cpu(), 
+        ann.cpu(),
         torch.tensor(data).float(),
         output_layers=['1','4','7','11'],
         param_layers=['0','3','6','10','12'])
@@ -396,7 +396,7 @@ def get_prob_attack_robustness(
         data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
     else:
         assert model['architecture'] in ["NMNIST"], "No other architecture added so far"
-    
+
     defense_probabilities = []
 
     # TODO Split up the dataloader, evaluate probabilities in the threads, and join using the mean and the number samples
@@ -422,13 +422,7 @@ def get_prob_attack_robustness(
             model_pred = get_prediction(model['prob_net'], P_adv, "prob")
             if model_pred == target:
                 correct.append(1.0)
-        
+
         defense_probabilities.append(float(sum(correct) / N_samples))
 
     return np.mean(np.array(defense_probabilities))
-
-
-
-
-    
-        
