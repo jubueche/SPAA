@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import pathlib
@@ -12,6 +11,7 @@ from sinabs.network import Network as SinabsNetwork
 from cleverhans.torch.utils import clip_eta
 from cleverhans.torch.utils import optimize_linear
 from cleverhans_additions import _fast_gradient_method_grad
+from datajuicer import cachable
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -125,6 +125,10 @@ def prob_attack_pgd(
     """
     Description here
     """
+    if norm == "2":
+        norm = 2
+    if norm == "np.inf":
+        norm = np.inf
     assert norm in [np.inf, 2], "Norm not supported"
     assert eps > eps_iter, "Eps must be bigger than eps_iter"
     assert eps >= rand_minmax, "rand_minmax should be smaller than or equal to eps"
@@ -373,3 +377,51 @@ def train_ann_mnist():
                 correct = pred.eq(target.view_as(pred)).sum().item()
         torch.save(ann.state_dict(), path)
     return ann
+
+@cachable(dependencies= ["model:{architecture}_session_id","eps","eps_iter","N_pgd","N_MC","norm","rand_minmax","limit","N_samples"])
+def get_prob_attack_robustness(
+    model,
+    eps,
+    eps_iter,
+    N_pgd,
+    N_MC,
+    norm,
+    rand_minmax,
+    limit,
+    N_samples
+):
+    if model['architecture'] == "NMNIST":
+        nmnist_dataloader = NMNISTDataLoader()
+        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
+    else:
+        assert model['architecture'] in ["NMNIST"], "No other architecture added so far"
+
+    defense_probabilities = []
+
+    # TODO Split up the dataloader, evaluate probabilities in the threads, and join using the mean and the number samples
+    for idx, (batch, target) in enumerate(data_loader):
+        if idx == limit:
+            break
+
+        batch = torch.clamp(batch, 0.0, 1.0)
+
+        P_adv = prob_attack_pgd(
+            model['prob_net'],
+            batch[0],
+            eps,
+            eps_iter,
+            N_pgd,
+            N_MC,
+            norm,
+            rand_minmax
+        )
+
+        correct = []
+        for _ in range(N_samples):
+            model_pred = get_prediction(model['prob_net'], P_adv, "prob")
+            if model_pred == target:
+                correct.append(1.0)
+
+        defense_probabilities.append(float(sum(correct) / N_samples))
+
+    return np.mean(np.array(defense_probabilities))
