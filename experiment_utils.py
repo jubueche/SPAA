@@ -138,10 +138,11 @@ def prob_attack_pgd(
     model_pred = get_prediction(prob_net, P0, mode="prob")
 
     # - Calculate initial perturbation
-    eta = torch.zeros_like(P0).uniform_(-rand_minmax, rand_minmax)
+    eta = torch.zeros_like(P0).uniform_(0, rand_minmax)
     # - Clip initial perturbation
     eta = clip_eta(eta, norm, eps)
-    P_adv = P0 + eta
+    # P_adv = P0 + eta
+    P_adv = P0 * (1 - eta) + (1 - P0) * eta
     # - Clip for probabilities
     P_adv = torch.clamp(P_adv, 0.0, 1.0)
 
