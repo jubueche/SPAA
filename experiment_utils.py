@@ -111,6 +111,57 @@ def get_mc_P_adv(
     P_adv = P_adv + eta
     return P_adv
 
+def hamming_attack(
+    hamming_distance_eps,
+    prob_net,
+    P0,
+    eps,
+    eps_iter,
+    N_pgd,
+    N_MC,
+    norm,
+    rand_minmax,
+    verbose = False
+):
+    """
+    Perform probabilistic attack using the parameters after "hamming_distance". Sort by largest deviation
+    from initial probability (i.e. largest deviation from 0 or 1). Flip "hamming_distance"-many spikes with
+    highest deviation. Return attacking input with hamming_distance.
+    """
+    P_adv = prob_attack_pgd(
+        prob_net,
+        P0,
+        eps,
+        eps_iter,
+        N_pgd,
+        N_MC,
+        norm,
+        rand_minmax,
+        verbose=verbose
+    )
+    
+    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
+    assert ((P0 == 1.0) | (P0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
+    hamming_distance = int(np.prod(P0.shape) * hamming_distance_eps)
+    if verbose:
+        print(f"Used Hamming distance is {hamming_distance}")
+    X_adv = P0.clone()
+    deviations = torch.abs(P_adv - P0).numpy()
+    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
+    tupled.sort(key = lambda a : a[0], reverse=True)
+    flip_indices = list(map(lambda a : a[1:], tupled[:hamming_distance]))
+    for idx in flip_indices:
+        X_adv[idx] = 1.0 if X_adv[idx] == 0.0 else 0.0
+    assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
+    return X_adv 
+
+
+def get_index_list(dims):
+    if len(dims) == 2:
+        return [(i,j) for i in range(dims[0]) for j in range(dims[1])]
+    else:
+        return [((i,) + el) for i in range(dims[0]) for el in get_index_list(dims[1:])]
+
 def prob_attack_pgd(
     prob_net,
     P0,
@@ -123,7 +174,9 @@ def prob_attack_pgd(
     verbose = False
 ):
     """
-    Description here
+    Probabilistic projected gradient descent attack. Evaluate network N_MC times by sampling from
+    current attacking probabilities, calculate the gradient of the attacking loss, update the probabilities
+    using reparameterization trick, repeat. Finally return the attacking probabilities.
     """
     if norm == "2":
         norm = 2
@@ -141,7 +194,9 @@ def prob_attack_pgd(
     eta = torch.zeros_like(P0).uniform_(0, rand_minmax)
     # - Clip initial perturbation
     eta = clip_eta(eta, norm, eps)
-    # P_adv = P0 + eta
+    # - Eta is sampled between 0 and 1. Add it to entries with 0 and subtract from entries with value 1
+    # - Note that sampling eta from uniform and adding would only add +eta to the zero values and -eta to the 1 values,
+    # - and everything else would be clamped to 0 or 1 again.
     P_adv = P0 * (1 - eta) + (1 - P0) * eta
     # - Clip for probabilities
     P_adv = torch.clamp(P_adv, 0.0, 1.0)
@@ -244,6 +299,7 @@ def plot_attacked_prob(
     prob_net,
     N_rows=4,
     N_cols=4,
+    data=None,
     block=True,
     figname=1
 ):
@@ -254,14 +310,15 @@ def plot_attacked_prob(
         for i in range(len(redraw_fn.sub)):
             redraw_fn.sub[i].draw(f, axes[i])
 
-    data = []
-    for i in range(N_rows * N_cols):
-        image = torch.round(reparameterization_bernoulli(P_adv, temperature=prob_net.temperature))
-        assert ((image >= 0.0) & (image <= 1.0)).all()
-        pred = get_prediction(prob_net, image, "non_prob")
-        store_image = torch.clamp(torch.sum(image, 1), 0.0, 1.0)
-        assert ((store_image == 0.0) | (store_image == 1.0)).all()
-        data.append((store_image.cpu(), pred))
+    if data == None:
+        data = []
+        for i in range(N_rows * N_cols):
+            image = torch.round(reparameterization_bernoulli(P_adv, temperature=prob_net.temperature))
+            assert ((image >= 0.0) & (image <= 1.0)).all()
+            pred = get_prediction(prob_net, image, "non_prob")
+            store_image = torch.clamp(torch.sum(image, 1), 0.0, 1.0)
+            assert ((store_image == 0.0) | (store_image == 1.0)).all()
+            data.append((store_image.cpu(), pred))
 
     redraw_fn.sub = [Redraw(el[0],el[1],target) for el in data]
 
@@ -309,11 +366,11 @@ def load_ann(path):
         ann.load_state_dict(torch.load(path))
         return ann
 
-def get_prob_net(ann = None):
+def get_det_net(ann = None):
     """
     Transform the continuous network into spiking network using the sinabs framework.
     Generate the ann if the passed ann is None.
-    Normalize the weights and increase initial weights by mult. factor. Create prob. network and return.
+    Normalize the weights and increase initial weights by multiplicative factor. 
     """
     if ann == None:
         ann = train_ann_mnist()
@@ -335,16 +392,25 @@ def get_prob_net(ann = None):
         param_layers=['0','3','6','10','12'])
 
     # - Create spiking model
-    input_shape = (2, 34, 34)
-    model = from_model(ann, input_shape=input_shape, add_spiking_output=True)
+    model = from_model(ann, input_shape=(2, 34, 34), add_spiking_output=True)
+    
+    # - Increase 1st layer weights by magnitude
+    model.spiking_model[0].weight.data *= 7
+    return model
+
+def get_prob_net(ann = None):
+    """
+    Create probabilistic network from spiking network and return.
+    """
+    # - Get the deterministic spikign model
+    model = get_det_net(ann)
 
     # - Create probabilistic network
     prob_net = ProbNetwork(
             ann,
             model.spiking_model,
-            input_shape=input_shape
+            input_shape=(2, 34, 34)
         )
-    prob_net.spiking_model[0].weight.data *= 7
     return prob_net
 
 def train_ann_mnist():

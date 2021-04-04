@@ -1,6 +1,5 @@
 from videofig import videofig
 from dataloader_NMNIST import NMNISTDataLoader
-from main_NMNIST import train_ann_mnist, get_prob_net
 import torch
 from experiment_utils import *
 
@@ -34,6 +33,28 @@ eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
 norm = 2
+hamming_distance_eps = 0.0025
+# - This is a sanity check. It should be 1 everywhere when you sum across the polarity.
+# If only one polarity is plotted, it should simply flip each spike.
+# hamming_distance_eps = 1.0
+
+X_adv = hamming_attack(
+    hamming_distance_eps=hamming_distance_eps,
+    prob_net=prob_net,
+    P0=P0,
+    eps=eps,
+    eps_iter=eps_iter,
+    N_pgd=N_pgd,
+    N_MC=N_MC,
+    norm=norm,
+    rand_minmax=rand_minmax,
+    verbose=True
+)
+
+print("Original prediction",int(get_prediction(prob_net, P0)))
+# - Evaluate on the attacked image
+model_pred_attack_hamming = get_prediction(prob_net, X_adv, "non_prob")
+print("Hamming attack prediction",int(model_pred_attack_hamming))
 
 P_adv = prob_attack_pgd(
     prob_net=prob_net,
@@ -48,7 +69,6 @@ P_adv = prob_attack_pgd(
 )
 
 # - Evaluate the network X times
-print("Original prediction",int(get_prediction(prob_net, P0)))
 N_eval = 300
 correct = []
 for i in range(N_eval):
@@ -57,7 +77,6 @@ for i in range(N_eval):
         correct.append(1.0)
 print("Evaluation accuracy",float(sum(correct)/N_eval))
 
-breakpoint()
 plot_attacked_prob(
     P_adv,
     target,
@@ -74,5 +93,16 @@ plot_attacked_prob(
     prob_net,
     N_rows=2,
     N_cols=2,
+    block=False,
     figname=2
+)
+
+plot_attacked_prob(
+    P0,
+    target,
+    prob_net,
+    N_rows=2,
+    N_cols=2,
+    data=[(torch.clamp(torch.sum(X_adv,1),0.0,1.0),model_pred_attack_hamming) for _ in range(2*2)],
+    figname=3
 )
