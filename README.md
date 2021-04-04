@@ -2,9 +2,12 @@
 Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 
 ## Setup
-- Install cleverhans from https://github.com/jubueche/cleverhans using ```git clone https://github.com/jubueche/cleverhans```, ```cd cleverhans``` and ```pip install -e .```
+- Install cleverhans using ```pip install git+https://github.com/cleverhans-lab/cleverhans.git#egg=cleverhans```
 - Install Sinabs ```pip install sinabs```
 - Install pytorch ```pip install torch```
+
+## Tutorial
+Start by executing ```python tutorial_NMNIST.py``` to see if everything works fine.
 
 ## Setting up a new experiment
 See the ```Experiments/example_experiment.py```. Use ```quick_access.py``` to call the experiment when you want to debug for example.
