@@ -12,6 +12,9 @@ from cleverhans.torch.utils import clip_eta
 from cleverhans.torch.utils import optimize_linear
 from cleverhans_additions import _fast_gradient_method_grad
 from datajuicer import cachable
+import itertools
+import functools
+import time
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -155,6 +158,139 @@ def hamming_attack(
     assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
     return X_adv 
 
+def scar_attack(
+    hamming_distance_eps,
+    net,
+    X0,
+    thresh,
+    verbose=False
+):
+    """
+    Implementation of the SCAR algorithm (https://openreview.net/pdf?id=xCm8kiWRiBT)
+    """
+    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
+    assert ((X0 == 1.0) | (X0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
+    t0 = time.time()
+    hamming_distance = int(np.prod(X0.shape) * hamming_distance_eps)
+    X_adv = X0.clone()
+    y = get_prediction(net, X0, mode="non_prob") # - Use the model prediction, not the target label
+    # - Find initial point p', points are stored as (g_p, idx1, idx2, ... , idxN)
+    # - Pick the middle point TODO What is better here?
+    points = {tuple([int(np.floor(el / 2)) for el in list(X_adv.shape)]) : 0.0} # - Dicts are hash maps and tuples are hashable
+    flipped = {} # - Keep track of the bits that have been flipped
+    crossed_threshold = {} # - Keep track of points that crossed threshold, every point in here must be in points as well
+    max_point = list(points.keys())[0] + (0,) # - Keep track of the point that has the current biggest grad
+    n_queries = 0
+    def N(p, shape):
+        surround = [[x for x in [el-1,el,el+1] if 0 <= x < shape[idx]] for idx,el in enumerate(list(p))]
+        n = list(itertools.product(*surround))
+        n.remove(p)
+        return n
+    def get_neighbor_dict(points, flipped, p, shape):
+        neighbors = N(p, shape)
+        r = {}
+        for n in neighbors:
+            if not n in flipped:
+                if n in points:
+                    r[n] = points[n]
+                else:
+                    r[n] = 0.0 # - This point was never visited
+        return r
+    def get_g_p(model_fn, pred, X_adv, p, F_X_adv):
+        X_tmp = X_adv.clone()
+        X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip the bit
+        g_p = F_X_adv - F.softmax(get_prediction_raw(model_fn, X_tmp, mode="non_prob"),dim=0)[int(pred)]
+        return g_p
+    def is_boundary(X_adv, p):
+        # - Get list of surrounding pixels along spatial dimension
+        surround = [p[:-2] + (i,j) for i in [p[-2]-1,p[-2],p[-2]+1] for j in [p[-1]-1,p[-1],p[-1]+1] if 0 <= i < X_adv.shape[-2] and 0 <= j < X_adv.shape[-1]]
+        return functools.reduce(lambda a,b:a or b, [X_adv[p] != X_adv[q] for q in surround], False)
+    def get_boundary_dict(X_adv):
+        boundary_set = {}
+        idx_list = get_index_list(X_adv.shape)
+        for p in idx_list:
+            if is_boundary(X_adv,p):
+                boundary_set[p] = 0.0
+        return boundary_set
+    def update_boundary_dict(current_boundary_dict, flipped_point, X_updated, points):
+        p = flipped_point
+        surround = [p[:-2] + (i,j) for i in [p[-2]-1,p[-2],p[-2]+1] for j in [p[-1]-1,p[-1],p[-1]+1] if 0 <= i < X_updated.shape[-2] and 0 <= j < X_updated.shape[-1]]
+        for q in surround:
+            if is_boundary(X_updated, q):
+                g_p = points.get(q)
+                if g_p == None:
+                    g_p = 0.0
+                current_boundary_dict[q] = g_p
+            else:
+                current_boundary_dict.pop(q, None) # - Delete from boundary set if it's not in boundary set anymore or never was in it
+        return current_boundary_dict
+
+    current_neighbor_dict = get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
+    current_boundary_dict = get_boundary_dict(X0) 
+    num_flipped = 0
+    while num_flipped < hamming_distance :
+        if verbose:
+            print(f"Queries: {n_queries}")
+        # - Cache the confidence of the current adv. image
+        F_X_adv = F.softmax(get_prediction_raw(net, X_adv, mode="non_prob"),dim=0)[int(y)]
+        if verbose:
+            print(f"Confidence: {float(F_X_adv)}")
+        n_queries += 1
+        max_point = max_point[:-1] + (0,) # - Reset the g_p value of max_point
+        #! - ASSERTS, remove me 
+        for p in crossed_threshold:
+            assert p in points, "crossed threshold points must be in points"
+            assert not p in flipped, "crossed threshold point can not be in flipped dict"
+            assert crossed_threshold[p] >= thresh, "point in crossed_threshold is smaller than thresh"
+        
+        for p in crossed_threshold:
+            g_p = get_g_p(net, y, X_adv, p, F_X_adv)
+            n_queries += 1
+            if g_p >= max_point[-1]:
+                max_point = p + (g_p,)
+            if g_p >= thresh:
+                crossed_threshold[p] = g_p
+            else:
+                crossed_threshold.pop(p, None) # - Remove the point from crossed threshold dict
+            points[p] = g_p
+        for p in current_neighbor_dict:
+            g_p = get_g_p(net, y, X_adv, p, F_X_adv)
+            n_queries += 1
+            if g_p >= max_point[-1]:
+                max_point = p + (g_p,)
+            if g_p >= thresh:
+                crossed_threshold[p] = g_p
+            points[p] = g_p # - Add or update the point's value
+
+        if max_point[-1] < thresh:
+            # - Find the best point in set of points that are on the boundary
+            for p in current_boundary_dict:
+                g_p = get_g_p(net, y, X_adv, p, F_X_adv)
+                n_queries += 1
+                if g_p >= max_point[-1]:
+                    max_point = p + (g_p,)
+        else:
+            if verbose:
+                print(f"Threshold crossed: {max_point[-1]}")
+        
+        # - Finally use the max point to update X_adv
+        p_flip = max_point[:-1] 
+        X_adv[p_flip] = 1.0 if X_adv[p_flip] == 0.0 else 0.0
+
+        flipped[p_flip] = max_point[-1] # - Add to flipped dict
+        crossed_threshold.pop(p_flip, None) # - Remove from crossed_threshold dict
+        points.pop(p_flip, None) # - Remove from points dict
+        current_neighbor_dict = get_neighbor_dict(points, flipped, p_flip, X0.shape) # - Update the neighbors for the current flipped point
+        current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points) # - Update the boundary set for the new image
+        num_flipped += 1
+        if verbose:
+            print(f"Flipped {num_flipped} of {hamming_distance}")
+
+    t1 = time.time()
+    if verbose:
+        print(f"Elapsed time {t1-t0}s")
+    return X_adv.cpu()
+
 
 def get_index_list(dims):
     if len(dims) == 2:
@@ -227,16 +363,30 @@ def get_prediction(
     """
     Make prediction on data either probabilistically or deterministically. Returns class labels.
     """
+    output = get_prediction_raw(net, data, mode)
+    pred = output.argmax()
+    return pred.cpu()
+
+def get_prediction_raw(
+    net,
+    data,
+    mode="prob"
+):
+    """
+    Make prediction on data either probabilistically or deterministically. Returns raw output.
+    """
     net.reset_states()
     if mode == "prob":
         output = net(data)
     elif mode == "non_prob":
-        output = net.forward_np(data)
+        try:
+            output = net.forward_np(data)
+        except:
+            output = net.forward(data)
     else:
         assert mode in ["prob","non_prob"], "Unknown mode"
     output = output.sum(axis=0)
-    pred = output.argmax()
-    return pred.cpu()
+    return output.cpu()
 
 def get_test_acc(
     net,
