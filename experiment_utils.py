@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import pathlib
 from dataloader_NMNIST import NMNISTDataLoader
+from dataloader_BMNIST import BMNISTDataLoader
 from sinabs.from_torch import from_model
 from sinabs.utils import normalize_weights
 from videofig import videofig
@@ -45,6 +46,30 @@ class ProbNetwork(SinabsNetwork):
     def forward_np(self, X):
         return super().forward(X)
 
+class ProbNetworkContinuous(torch.nn.Module):
+    """
+    Probabilistic Network
+    Continuous torch model that is evaluated using probabilities for Bernoulli random variables.
+    Methods:
+        forward: Received probabilities, draws from the Bernoulli random variables and evaluates the network
+        forward_np: Non-probabilistic forward method. Input: Spikes
+    """
+    def __init__(
+        self,
+        model,
+        temperature = 0.01
+    ):
+        super(ProbNetworkContinuous, self).__init__()
+        self.temperature = temperature
+        self.model = model
+
+    def forward(self, P):
+        X = reparameterization_bernoulli(P, self.temperature)
+        return self.model.forward(X)
+
+    def forward_np(self, X):
+        return self.model.forward(X)
+
 def reparameterization_bernoulli(
     P,
     temperature
@@ -83,7 +108,10 @@ def get_grad(
     Use fast_gradient_method_grad from cleverhans to get the gradients w.r.t. the input
     probabilities. Return the gradients.
     """
-    prob_net.reset_states()
+    try:
+        prob_net.reset_states()
+    except:
+        pass
     g = _fast_gradient_method_grad(
             model_fn=prob_net,
             x=P_adv,
@@ -124,6 +152,7 @@ def hamming_attack(
     N_MC,
     norm,
     rand_minmax,
+    early_stopping=False,
     verbose = False
 ):
     """
@@ -145,6 +174,7 @@ def hamming_attack(
     
     assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
     assert ((P0 == 1.0) | (P0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
+    y = get_prediction(prob_net, P0, mode="non_prob")
     hamming_distance = int(np.prod(P0.shape) * hamming_distance_eps)
     if verbose:
         print(f"Used Hamming distance is {hamming_distance}")
@@ -152,17 +182,24 @@ def hamming_attack(
     deviations = torch.abs(P_adv - P0).numpy()
     tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
     tupled.sort(key = lambda a : a[0], reverse=True)
-    flip_indices = list(map(lambda a : a[1:], tupled[:hamming_distance]))
-    for idx in flip_indices:
-        X_adv[idx] = 1.0 if X_adv[idx] == 0.0 else 0.0
-    assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
-    return X_adv 
+    flip_indices = list(map(lambda a : a[1:], tupled))
+    for idx,flip_index in enumerate(flip_indices):
+        if idx == hamming_distance:
+            break
+        if early_stopping and (not get_prediction(prob_net, X_adv, mode="non_prob") == y):
+            break
+
+        X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
+    if not early_stopping:
+        assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
+    return X_adv, idx 
 
 def scar_attack(
     hamming_distance_eps,
     net,
     X0,
     thresh,
+    early_stopping=False,
     verbose=False
 ):
     """
@@ -232,9 +269,14 @@ def scar_attack(
         if verbose:
             print(f"Queries: {n_queries}")
         # - Cache the confidence of the current adv. image
-        F_X_adv = F.softmax(get_prediction_raw(net, X_adv, mode="non_prob"),dim=0)[int(y)]
+        output_raw = get_prediction_raw(net, X_adv, mode="non_prob")
+        F_X_adv = F.softmax(output_raw,dim=0)[int(y)]
         if verbose:
             print(f"Confidence: {float(F_X_adv)}")
+        
+        if early_stopping and (not torch.argmax(output_raw) == y):
+            break
+        
         n_queries += 1
         max_point = max_point[:-1] + (0,) # - Reset the g_p value of max_point
         #! - ASSERTS, remove me 
@@ -243,6 +285,7 @@ def scar_attack(
             assert not p in flipped, "crossed threshold point can not be in flipped dict"
             assert crossed_threshold[p] >= thresh, "point in crossed_threshold is smaller than thresh"
         
+        to_pop = []
         for p in crossed_threshold:
             g_p = get_g_p(net, y, X_adv, p, F_X_adv)
             n_queries += 1
@@ -251,8 +294,10 @@ def scar_attack(
             if g_p >= thresh:
                 crossed_threshold[p] = g_p
             else:
-                crossed_threshold.pop(p, None) # - Remove the point from crossed threshold dict
+                to_pop.append(p)
             points[p] = g_p
+        for p in to_pop:
+            crossed_threshold.pop(p, None) # - Remove the point from crossed threshold dict
         for p in current_neighbor_dict:
             g_p = get_g_p(net, y, X_adv, p, F_X_adv)
             n_queries += 1
@@ -289,7 +334,7 @@ def scar_attack(
     t1 = time.time()
     if verbose:
         print(f"Elapsed time {t1-t0}s")
-    return X_adv.cpu()
+    return X_adv.cpu(), num_flipped
 
 
 def get_index_list(dims):
@@ -375,7 +420,10 @@ def get_prediction_raw(
     """
     Make prediction on data either probabilistically or deterministically. Returns raw output.
     """
-    net.reset_states()
+    try:
+        net.reset_states()
+    except:
+        pass
     if mode == "prob":
         output = net(data)
     elif mode == "non_prob":
@@ -503,13 +551,34 @@ def get_ann_arch():
     ann = ann.to(device)
     return ann
 
-def load_ann(path):
+def get_mnist_ann_arch():
+    """
+    Generate cnn architecture for MNIST described in https://openreview.net/pdf?id=xCm8kiWRiBT
+    """
+    # - Create sequential model
+    ann = nn.Sequential(
+        nn.Conv2d(1, 32, 3, 1),
+        nn.ReLU(),
+        nn.Conv2d(32, 64, 3, 1),
+        nn.ReLU(),
+        nn.MaxPool2d(2,2),
+        nn.Dropout2d(p=0.25),
+        nn.Flatten(),
+        nn.Dropout(p=0.5),
+        nn.Linear(9216,128),
+        nn.Linear(128, 10)
+    )
+    ann = ann.to(device)
+    return ann
+
+def load_ann(path, ann = None):
     """
     Tries to load ann from path, returns None if not successful
     """
     if isinstance(path, str):
         path = pathlib.Path(path)
-    ann = get_ann_arch()
+    if ann == None:
+        ann = get_ann_arch()
     if not path.exists():
         return None
     else:
@@ -552,7 +621,7 @@ def get_prob_net(ann = None):
     """
     Create probabilistic network from spiking network and return.
     """
-    # - Get the deterministic spikign model
+    # - Get the deterministic spiking model
     model = get_det_net(ann)
 
     # - Create probabilistic network
@@ -561,6 +630,15 @@ def get_prob_net(ann = None):
             model.spiking_model,
             input_shape=(2, 34, 34)
         )
+    return prob_net
+
+def get_prob_net_continuous(ann = None):
+    """
+    Create probabilistic network from standard torch model.
+    """
+    if ann == None:
+        ann = train_ann_binary_mnist()
+    prob_net = ProbNetworkContinuous(ann)
     return prob_net
 
 def train_ann_mnist():
@@ -595,6 +673,41 @@ def train_ann_mnist():
         torch.save(ann.state_dict(), path)
     return ann
 
+def train_ann_binary_mnist():
+    """
+    Checks if binary MNIST model exists. If not, train and store. Return model.
+    """
+    # - Create data loader
+    bmnist_dataloader = BMNISTDataLoader()
+
+    # - Set the seed
+    torch.manual_seed(42)
+
+    # - Setup path
+    path = bmnist_dataloader.path / "B-MNIST/mnist_ann.pt"
+
+    ann = load_ann(path, ann = get_mnist_ann_arch())
+
+    if ann == None:
+        ann = get_mnist_ann_arch()
+        data_loader_train = bmnist_dataloader.get_data_loader(dset="train", shuffle=True, num_workers=4, batch_size=64)
+        optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
+        n_epochs = 50
+        for n in range(n_epochs):
+            print(f"Epoch {n} / {n_epochs}")
+            for data, target in data_loader_train:
+                data, target = data.to(device), target.to(device) # GPU
+                output = ann(data)
+                optim.zero_grad()
+                loss = F.cross_entropy(output, target)
+                loss.backward()
+                optim.step()
+                pred = output.argmax(dim=1, keepdim=True)
+                correct = pred.eq(target.view_as(pred)).sum().item()
+        torch.save(ann.state_dict(), path)
+    ann.eval() # - Set into eval mode for dropout layers
+    return ann
+
 @cachable(dependencies= ["model:{architecture}_session_id","eps","eps_iter","N_pgd","N_MC","norm","rand_minmax","limit","N_samples"])
 def get_prob_attack_robustness(
     model,
@@ -614,8 +727,6 @@ def get_prob_attack_robustness(
         assert model['architecture'] in ["NMNIST"], "No other architecture added so far"
 
     defense_probabilities = []
-
-    # TODO Split up the dataloader, evaluate probabilities in the threads, and join using the mean and the number samples
     for idx, (batch, target) in enumerate(data_loader):
         if idx == limit:
             break

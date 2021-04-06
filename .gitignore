@@ -7,3 +7,5 @@
 **/test_Files.zip
 **/train_Files.zip
 **/__pycache__
+**/MNIST
+**/MNIST.tar.gz

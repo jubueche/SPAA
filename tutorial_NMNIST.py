@@ -34,11 +34,8 @@ eps_iter = 0.3
 rand_minmax = 0.01
 norm = 2
 hamming_distance_eps = 0.0025
-# - This is a sanity check. It should be 1 everywhere when you sum across the polarity.
-# If only one polarity is plotted, it should simply flip each spike.
-# hamming_distance_eps = 1.0
 
-X_adv = hamming_attack(
+X_adv, num_flips = hamming_attack(
     hamming_distance_eps=hamming_distance_eps,
     prob_net=prob_net,
     P0=P0,
@@ -48,13 +45,14 @@ X_adv = hamming_attack(
     N_MC=N_MC,
     norm=norm,
     rand_minmax=rand_minmax,
+    early_stopping=True,
     verbose=True
 )
 
 print("Original prediction",int(get_prediction(prob_net, P0)))
 # - Evaluate on the attacked image
 model_pred_attack_hamming = get_prediction(prob_net, X_adv, "non_prob")
-print("Hamming attack prediction",int(model_pred_attack_hamming))
+print(f"Hamming attack prediction {int(model_pred_attack_hamming)} with L_0 = {num_flips}")
 
 P_adv = prob_attack_pgd(
     prob_net=prob_net,
