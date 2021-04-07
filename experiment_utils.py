@@ -142,6 +142,40 @@ def get_mc_P_adv(
     P_adv = P_adv + eta
     return P_adv
 
+def hamming_attack_get_indices(
+    prob_net,
+    P0,
+    eps,
+    eps_iter,
+    N_pgd,
+    N_MC,
+    norm,
+    rand_minmax,
+    verbose = False
+):
+    """
+    Perform probabilistic attack. Sort indices by largest deviation and return
+    """
+    assert ((P0 == 1.0) | (P0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
+    P_adv = prob_attack_pgd(
+        prob_net,
+        P0,
+        eps,
+        eps_iter,
+        N_pgd,
+        N_MC,
+        norm,
+        rand_minmax,
+        verbose=verbose
+    )
+    X_adv = P0.clone()
+    deviations = torch.abs(P_adv - P0).numpy()
+    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
+    tupled.sort(key = lambda a : a[0], reverse=True)
+    flip_indices = list(map(lambda a : a[1:], tupled))
+    return flip_indices
+
+
 def hamming_attack(
     hamming_distance_eps,
     prob_net,
@@ -156,33 +190,27 @@ def hamming_attack(
     verbose = False
 ):
     """
-    Perform probabilistic attack using the parameters after "hamming_distance". Sort by largest deviation
+    Perform probabilistic attack. Sort by largest deviation
     from initial probability (i.e. largest deviation from 0 or 1). Flip "hamming_distance"-many spikes with
     highest deviation. Return attacking input with hamming_distance.
     """
-    P_adv = prob_attack_pgd(
-        prob_net,
-        P0,
-        eps,
-        eps_iter,
-        N_pgd,
-        N_MC,
-        norm,
-        rand_minmax,
-        verbose=verbose
-    )
-    
     assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
-    assert ((P0 == 1.0) | (P0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
-    y = get_prediction(prob_net, P0, mode="non_prob")
     hamming_distance = int(np.prod(P0.shape) * hamming_distance_eps)
     if verbose:
         print(f"Used Hamming distance is {hamming_distance}")
     X_adv = P0.clone()
-    deviations = torch.abs(P_adv - P0).numpy()
-    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
-    tupled.sort(key = lambda a : a[0], reverse=True)
-    flip_indices = list(map(lambda a : a[1:], tupled))
+    flip_indices = hamming_attack_get_indices(
+        prob_net=prob_net,
+        P0=P0,
+        eps=eps,
+        eps_iter=eps_iter,
+        N_pgd=N_pgd,
+        N_MC=N_MC,
+        norm=norm,
+        rand_minmax=rand_minmax,
+        verbose=verbose
+    )
+    y = get_prediction(prob_net, P0, mode="non_prob")
     for idx,flip_index in enumerate(flip_indices):
         if idx == hamming_distance:
             break
@@ -193,6 +221,64 @@ def hamming_attack(
     if not early_stopping:
         assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
     return X_adv, idx 
+
+def boosted_hamming_attack(
+    k,
+    prob_net,
+    P0,
+    eps,
+    eps_iter,
+    N_pgd,
+    N_MC,
+    norm,
+    rand_minmax,
+    early_stopping=False,
+    verbose = False
+):
+    """
+    Perform standard attack. Pick k most-likely-to-flip indices and perform confidence search.
+    """
+    assert isinstance(k, int), "k must be int"
+    assert k <= np.prod(P0.shape), "k must be smaller than number of pixels"
+    X_adv = P0.clone()
+    flip_indices = hamming_attack_get_indices(
+        prob_net=prob_net,
+        P0=P0,
+        eps=eps,
+        eps_iter=eps_iter,
+        N_pgd=N_pgd,
+        N_MC=N_MC,
+        norm=norm,
+        rand_minmax=rand_minmax,
+        verbose=verbose
+    )[:k]
+    flip_indices_d = {}
+    flip_indices.reverse()
+    for p in flip_indices:
+        flip_indices_d[p] = 0.0 # - Turn into dictionary
+    y = get_prediction(prob_net, P0, mode="non_prob")
+    def confidence(X):
+        return F.softmax(get_prediction_raw(prob_net, X, mode="non_prob"),dim=0)[y]
+    for idx in range(k):
+        if not get_prediction(prob_net, X_adv, mode="non_prob") == y:
+            break
+        F_X_adv = confidence(X_adv)
+        if verbose:
+            print(f"Confidence: {F_X_adv}")
+        X_tmp = X_adv.clone()
+        best_delta_conf = 0.0
+        best_point = None
+        for p in flip_indices_d:
+            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
+            d_conf = F_X_adv - confidence(X_tmp)
+            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip back
+            if d_conf >= best_delta_conf:
+                best_delta_conf = d_conf
+                best_point = p
+        flip_indices_d.pop(best_point, None)
+        X_adv[best_point] = 1.0 if X_adv[best_point] == 0.0 else 0.0 # - Flip the best point
+    
+    return X_adv, idx
 
 def scar_attack(
     hamming_distance_eps,
