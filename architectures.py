@@ -4,7 +4,7 @@ import os.path
 from datajuicer import cachable, get, format_template
 import argparse
 import random
-from experiment_utils import load_ann, get_prob_net
+from experiment_utils import *
 
 def standard_defaults():
     return {}
@@ -105,4 +105,48 @@ class NMNIST:
         data["ann"] = ann
         data["prob_net"] = snn
         data["NMNIST_session_id"] = sid
+        return data
+
+
+class BMNIST:
+    @staticmethod
+    def make():
+        d = BMNIST.default_hyperparameters()
+        def mk_data_dir(mode="direct"):
+            if mode=="direct":
+                return "data/B-MNIST/"
+            elif mode=="bsub":
+                return "$SCRATCH/data/B-MNIST/"
+            raise Exception("Invalid Mode")
+        d["mk_data_dir"] = mk_data_dir
+        d["data_dir"] = "{mk_data_dir({mode})}"
+        d["code_file"] = "main_BMNIST.py"
+        d["architecture"] = "BMNIST"
+        d["train"] = mk_runner(BMNIST, ["data_dir"])
+        return d
+
+    @staticmethod
+    def default_hyperparameters():
+        d = standard_defaults()
+        return d
+
+    @staticmethod
+    def checker(sid, table, cache_dir):
+        return True
+    
+    @staticmethod
+    def get_flags():
+        default_dict = {**BMNIST.default_hyperparameters(), **{"data_dir":"data/B-MNIST/"}}
+        return _get_flags(default_dict, help())
+
+    @staticmethod
+    def loader(sid, table, cache_dir):
+        data = {}
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
+        ann = load_ann(model_path, ann = get_mnist_ann_arch())
+        prob_net = get_prob_net_continuous(ann = ann)
+        data["ann"] = ann
+        data["prob_net"] = prob_net
+        data["BMNIST_session_id"] = sid
         return data

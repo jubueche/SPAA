@@ -35,7 +35,7 @@ rand_minmax = 0.01
 norm = 2
 hamming_distance_eps = 0.0025
 
-X_adv, num_flips = hamming_attack(
+return_dict = hamming_attack(
     hamming_distance_eps=hamming_distance_eps,
     prob_net=prob_net,
     P0=P0,
@@ -48,6 +48,9 @@ X_adv, num_flips = hamming_attack(
     early_stopping=True,
     verbose=True
 )
+
+X_adv = return_dict["X_adv"]
+num_flips = return_dict["L0"]
 
 print("Original prediction",int(get_prediction(prob_net, P0)))
 # - Evaluate on the attacked image

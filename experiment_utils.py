@@ -195,9 +195,8 @@ def hamming_attack(
     highest deviation. Return attacking input with hamming_distance.
     """
     assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
+    t0 = time.time()
     hamming_distance = int(np.prod(P0.shape) * hamming_distance_eps)
-    if verbose:
-        print(f"Used Hamming distance is {hamming_distance}")
     X_adv = P0.clone()
     flip_indices = hamming_attack_get_indices(
         prob_net=prob_net,
@@ -211,16 +210,28 @@ def hamming_attack(
         verbose=verbose
     )
     y = get_prediction(prob_net, P0, mode="non_prob")
+    n_queries = 2 + N_pgd * N_MC 
     for idx,flip_index in enumerate(flip_indices):
         if idx == hamming_distance:
             break
+        if early_stopping:
+            n_queries += 1
         if early_stopping and (not get_prediction(prob_net, X_adv, mode="non_prob") == y):
+            if verbose:
+                print(f"Used Hamming distance {idx}")
             break
-
         X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
     if not early_stopping:
         assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
-    return X_adv, idx 
+    
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = idx
+    return_dict["n_queries"] = n_queries
+    return return_dict
 
 def boosted_hamming_attack(
     k,
@@ -240,6 +251,7 @@ def boosted_hamming_attack(
     """
     assert isinstance(k, int), "k must be int"
     assert k <= np.prod(P0.shape), "k must be smaller than number of pixels"
+    t0 = time.time()
     X_adv = P0.clone()
     flip_indices = hamming_attack_get_indices(
         prob_net=prob_net,
@@ -253,22 +265,25 @@ def boosted_hamming_attack(
         verbose=verbose
     )[:k]
     flip_indices_d = {}
-    flip_indices.reverse()
+    flip_indices.reverse() # - Reverse so that highest prob. points are at the end. This causes that these points will be chosen if confidence remains 1
     for p in flip_indices:
         flip_indices_d[p] = 0.0 # - Turn into dictionary
     y = get_prediction(prob_net, P0, mode="non_prob")
+    n_queries = 2 + N_pgd * N_MC
     def confidence(X):
         return F.softmax(get_prediction_raw(prob_net, X, mode="non_prob"),dim=0)[y]
     for idx in range(k):
+        n_queries += 2
         if not get_prediction(prob_net, X_adv, mode="non_prob") == y:
             break
         F_X_adv = confidence(X_adv)
         if verbose:
             print(f"Confidence: {F_X_adv}")
         X_tmp = X_adv.clone()
-        best_delta_conf = 0.0
+        best_delta_conf = -np.inf
         best_point = None
         for p in flip_indices_d:
+            n_queries += 1
             X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
             d_conf = F_X_adv - confidence(X_tmp)
             X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip back
@@ -278,7 +293,14 @@ def boosted_hamming_attack(
         flip_indices_d.pop(best_point, None)
         X_adv[best_point] = 1.0 if X_adv[best_point] == 0.0 else 0.0 # - Flip the best point
     
-    return X_adv, idx
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = idx
+    return_dict["n_queries"] = n_queries
+    return return_dict
 
 def scar_attack(
     hamming_distance_eps,
@@ -335,11 +357,11 @@ def scar_attack(
             if is_boundary(X_adv,p):
                 boundary_set[p] = 0.0
         return boundary_set
-    def update_boundary_dict(current_boundary_dict, flipped_point, X_updated, points):
+    def update_boundary_dict(current_boundary_dict, flipped_point, X_updated, points, flipped):
         p = flipped_point
         surround = [p[:-2] + (i,j) for i in [p[-2]-1,p[-2],p[-2]+1] for j in [p[-1]-1,p[-1],p[-1]+1] if 0 <= i < X_updated.shape[-2] and 0 <= j < X_updated.shape[-1]]
         for q in surround:
-            if is_boundary(X_updated, q):
+            if (None == flipped.get(q, None)) and is_boundary(X_updated, q):
                 g_p = points.get(q)
                 if g_p == None:
                     g_p = 0.0
@@ -365,11 +387,6 @@ def scar_attack(
         
         n_queries += 1
         max_point = max_point[:-1] + (0,) # - Reset the g_p value of max_point
-        #! - ASSERTS, remove me 
-        for p in crossed_threshold:
-            assert p in points, "crossed threshold points must be in points"
-            assert not p in flipped, "crossed threshold point can not be in flipped dict"
-            assert crossed_threshold[p] >= thresh, "point in crossed_threshold is smaller than thresh"
         
         to_pop = []
         for p in crossed_threshold:
@@ -407,12 +424,11 @@ def scar_attack(
         # - Finally use the max point to update X_adv
         p_flip = max_point[:-1] 
         X_adv[p_flip] = 1.0 if X_adv[p_flip] == 0.0 else 0.0
-
         flipped[p_flip] = max_point[-1] # - Add to flipped dict
         crossed_threshold.pop(p_flip, None) # - Remove from crossed_threshold dict
         points.pop(p_flip, None) # - Remove from points dict
         current_neighbor_dict = get_neighbor_dict(points, flipped, p_flip, X0.shape) # - Update the neighbors for the current flipped point
-        current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points) # - Update the boundary set for the new image
+        current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points, flipped) # - Update the boundary set for the new image
         num_flipped += 1
         if verbose:
             print(f"Flipped {num_flipped} of {hamming_distance}")
@@ -420,7 +436,13 @@ def scar_attack(
     t1 = time.time()
     if verbose:
         print(f"Elapsed time {t1-t0}s")
-    return X_adv.cpu(), num_flipped
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
+    return_dict["X_adv"] = X_adv.cpu()
+    return_dict["L0"] = num_flipped
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["n_queries"] = n_queries
+    return return_dict
 
 
 def get_index_list(dims):
@@ -669,6 +691,7 @@ def load_ann(path, ann = None):
         return None
     else:
         ann.load_state_dict(torch.load(path))
+        ann.eval()
         return ann
 
 def get_det_net(ann = None):
@@ -757,6 +780,7 @@ def train_ann_mnist():
                 pred = output.argmax(dim=1, keepdim=True)
                 correct = pred.eq(target.view_as(pred)).sum().item()
         torch.save(ann.state_dict(), path)
+    ann.eval()
     return ann
 
 def train_ann_binary_mnist():
@@ -839,3 +863,124 @@ def get_prob_attack_robustness(
         defense_probabilities.append(float(sum(correct) / N_samples))
 
     return np.mean(np.array(defense_probabilities))
+
+def get_data_loader_from_model(model):
+    if model['architecture'] == "NMNIST":
+        nmnist_dataloader = NMNISTDataLoader()
+        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
+    elif model['architecture'] == "BMNIST":
+        bmnist_dataloader = BMNISTDataLoader()
+        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=1)
+    else:
+        assert model['architecture'] in ["NMNIST","BMNIST"], "No other architecture added so far"
+    return data_loader
+
+@cachable(dependencies= ["model:{architecture}_session_id","N_pgd","N_MC","eps","eps_iter","rand_minmax","norm","k","limit"])
+def prob_boost_attack_on_test_set(
+    model,
+    N_pgd,
+    N_MC,
+    eps,
+    eps_iter,
+    rand_minmax,
+    norm,
+    k,
+    verbose,
+    limit
+):
+    def attack_fn(X0):
+        d = boosted_hamming_attack(
+            k=k,
+            prob_net=model["prob_net"],
+            P0=X0,
+            eps=eps,
+            eps_iter=eps_iter,
+            N_pgd=N_pgd,
+            N_MC=N_MC,
+            norm=norm,
+            rand_minmax=rand_minmax,
+            verbose=verbose)
+        return d
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+@cachable(dependencies= ["model:{architecture}_session_id","N_pgd","N_MC","eps","eps_iter","rand_minmax","norm","hamming_distance_eps","early_stopping","limit"])
+def prob_attack_on_test_set(
+    model,
+    N_pgd,
+    N_MC,
+    eps,
+    eps_iter,
+    rand_minmax,
+    norm,
+    hamming_distance_eps,
+    early_stopping,
+    verbose,
+    limit
+):
+
+    def attack_fn(X0):
+        d = hamming_attack(
+            hamming_distance_eps=hamming_distance_eps,
+            prob_net=model["prob_net"],
+            P0=X0,
+            eps=eps,
+            eps_iter=eps_iter,
+            N_pgd=N_pgd,
+            N_MC=N_MC,
+            norm=norm,
+            rand_minmax=rand_minmax,
+            early_stopping=early_stopping,
+            verbose=verbose)
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn) 
+
+@cachable(dependencies= ["model:{architecture}_session_id","hamming_distance_eps","thresh","early_stopping","limit"])
+def scar_attack_on_test_set(
+    model,
+    hamming_distance_eps,
+    thresh,
+    early_stopping,
+    verbose,
+    limit
+):
+
+    def attack_fn(X0):
+        d = scar_attack(
+            hamming_distance_eps=hamming_distance_eps,
+            net=model["ann"],
+            X0=X0,
+            thresh=thresh,
+            early_stopping=early_stopping,
+            verbose=verbose)
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+def evaluate_on_test_set(model, limit, attack_fn):
+    data_loader = get_data_loader_from_model(model)
+
+    success = []
+    time_elapsed = []
+    L0_required = []
+    n_queries = []
+
+    for idx,(batch,target) in enumerate(data_loader):
+        if idx == limit:
+            break
+        X0 = batch.to(device)
+
+        d = attack_fn(X0)
+        print(d["success"])
+        success.append(d["success"])
+        time_elapsed.append(d["elapsed_time"])
+        L0_required.append(d["L0"])
+        n_queries.append(d["n_queries"])
+
+    ret = {}
+    ret["success_rate"] = np.mean(np.array(success)) 
+    ret["elapsed_time"] = np.mean(np.array(time_elapsed))
+    ret["L0"] = np.mean(np.array(L0_required))
+    ret["n_queries"] = np.mean(np.array(n_queries))
+    return ret
+
