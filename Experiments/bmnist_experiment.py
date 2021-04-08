@@ -25,7 +25,7 @@ class bmnist_experiment:
         thresh = 0.1 # - For SCAR
         early_stopping = True
         verbose = True
-        limit = -1
+        limit = 9
         
         grid = configure(grid, {
             "N_pgd":N_pgd,
@@ -76,14 +76,3 @@ class bmnist_experiment:
             "{verbose}",
             "{limit}"
         )
-
-        # - Print the results
-        attack_labels = ["SCAR            ","PAA (Ours)      ","PAA-Boost (Ours)"]
-        print("\\begin{table}[!htb]\n\\begin{tabular}{lllll}")
-        print("%s \t\t\t %s \t %s \t %s \t %s" % ("Attack & ","Success rate & ","L0 & ","Queries &", "Time (s) \\\\"))
-        for idx,attack in enumerate(["scar","prob","prob_boost"]):
-            attack_id = attack + "_attack"
-            d = query(grid, attack_id, where={})[0]
-            print("%s \t\t\t %.4f \t %.2f \t %.2f \t %.2f \\\\" % (attack_labels[idx],d["success_rate"],d["L0"],d["n_queries"], d["elapsed_time"]))
-        print("\\caption{CNN on MNIST}")
-        print("\\end{table}")

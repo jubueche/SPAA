@@ -231,6 +231,8 @@ def hamming_attack(
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = idx
     return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y
+    return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
     return return_dict
 
 def boosted_hamming_attack(
@@ -300,6 +302,8 @@ def boosted_hamming_attack(
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = idx
     return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y
+    return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
     return return_dict
 
 def scar_attack(
@@ -442,6 +446,8 @@ def scar_attack(
     return_dict["L0"] = num_flipped
     return_dict["elapsed_time"] = t1-t0
     return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
 
 
@@ -964,6 +970,9 @@ def evaluate_on_test_set(model, limit, attack_fn):
     time_elapsed = []
     L0_required = []
     n_queries = []
+    targets = []
+    predicted = []
+    predicted_attacked = []
 
     for idx,(batch,target) in enumerate(data_loader):
         if idx == limit:
@@ -971,16 +980,21 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X0 = batch.to(device)
 
         d = attack_fn(X0)
-        print(d["success"])
         success.append(d["success"])
         time_elapsed.append(d["elapsed_time"])
         L0_required.append(d["L0"])
         n_queries.append(d["n_queries"])
+        predicted.append(d["predicted"])
+        predicted_attacked.append(d["predicted_attacked"])
+        targets.append(int(target))
 
     ret = {}
-    ret["success_rate"] = np.mean(np.array(success)) 
-    ret["elapsed_time"] = np.mean(np.array(time_elapsed))
-    ret["L0"] = np.mean(np.array(L0_required))
-    ret["n_queries"] = np.mean(np.array(n_queries))
+    ret["success"] = success 
+    ret["elapsed_time"] = time_elapsed
+    ret["L0"] = L0_required
+    ret["n_queries"] = n_queries
+    ret["target"] = targets
+    ret["predicted"] = predicted
+    ret["predicted_attacked"] = predicted_attacked
     return ret
 
