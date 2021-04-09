@@ -16,9 +16,13 @@ from datajuicer import cachable
 import itertools
 import functools
 import time
+import random
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# - Set random seed
+random.seed(42)
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -325,10 +329,10 @@ def scar_attack(
     y = get_prediction(net, X0, mode="non_prob") # - Use the model prediction, not the target label
     # - Find initial point p', points are stored as (g_p, idx1, idx2, ... , idxN)
     # - Pick the middle point TODO What is better here?
-    points = {tuple([int(np.floor(el / 2)) for el in list(X_adv.shape)]) : 0.0} # - Dicts are hash maps and tuples are hashable
+    points = {} # - Dicts are hash maps and tuples are hashable
     flipped = {} # - Keep track of the bits that have been flipped
     crossed_threshold = {} # - Keep track of points that crossed threshold, every point in here must be in points as well
-    max_point = list(points.keys())[0] + (0,) # - Keep track of the point that has the current biggest grad
+    max_point = tuple([0 for _ in range(len(X_adv.shape)+1)]) # - Keep track of the point that has the current biggest grad, init with (0,...,0)
     n_queries = 0
     def N(p, shape):
         surround = [[x for x in [el-1,el,el+1] if 0 <= x < shape[idx]] for idx,el in enumerate(list(p))]
@@ -374,7 +378,7 @@ def scar_attack(
                 current_boundary_dict.pop(q, None) # - Delete from boundary set if it's not in boundary set anymore or never was in it
         return current_boundary_dict
 
-    current_neighbor_dict = get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
+    current_neighbor_dict = {} # get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
     current_boundary_dict = get_boundary_dict(X0) 
     num_flipped = 0
     while num_flipped < hamming_distance :
@@ -416,7 +420,9 @@ def scar_attack(
 
         if max_point[-1] < thresh:
             # - Find the best point in set of points that are on the boundary
-            for p in current_boundary_dict:
+            b_points = list(current_boundary_dict.keys())
+            random.shuffle(b_points)
+            for p in b_points:
                 g_p = get_g_p(net, y, X_adv, p, F_X_adv)
                 n_queries += 1
                 if g_p >= max_point[-1]:

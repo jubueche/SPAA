@@ -25,7 +25,7 @@ class bmnist_experiment:
         thresh = 0.1 # - For SCAR
         early_stopping = True
         verbose = True
-        limit = 9
+        limit = -1
         
         grid = configure(grid, {
             "N_pgd":N_pgd,

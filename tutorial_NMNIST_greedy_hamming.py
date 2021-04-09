@@ -25,7 +25,7 @@ eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
 norm = 2
-hamming_distance_eps = 100 / 784
+hamming_distance_eps = 400 / 784
 verbose = False
 
 # - Test data set
@@ -35,6 +35,23 @@ for idx, (data,target) in enumerate(data_loader_test):
 
     if idx < 5:
         continue
+
+    # if not (target == 0):
+    #     continue
+    
+    return_dict = hamming_attack(
+        hamming_distance_eps=hamming_distance_eps,
+        prob_net=prob_net,
+        P0=X0,
+        eps=eps,
+        eps_iter=eps_iter,
+        N_pgd=N_pgd,
+        N_MC=N_MC,
+        norm=norm,
+        rand_minmax=rand_minmax,
+        early_stopping=True,
+        verbose=True
+    )
 
     # - Attack using greedy attack from https://openreview.net/pdf?id=xCm8kiWRiBT
     return_dict_scar = scar_attack(
@@ -56,20 +73,6 @@ for idx, (data,target) in enumerate(data_loader_test):
         N_MC=N_MC,
         norm=norm,
         rand_minmax=rand_minmax,
-        verbose=verbose
-    )
-
-    return_dict = hamming_attack(
-        hamming_distance_eps=hamming_distance_eps,
-        prob_net=prob_net,
-        P0=X0,
-        eps=eps,
-        eps_iter=eps_iter,
-        N_pgd=N_pgd,
-        N_MC=N_MC,
-        norm=norm,
-        rand_minmax=rand_minmax,
-        early_stopping=True,
         verbose=verbose
     )
 

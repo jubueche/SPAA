@@ -27,7 +27,7 @@ P0 = torch.clamp(P0, 0.0, 1.0)
 model_pred = get_prediction(prob_net, P0)
 
 # - Attack parameters
-N_pgd = 50
+N_pgd = 25
 N_MC = 10
 eps = 1.5
 eps_iter = 0.3
