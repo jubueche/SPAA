@@ -173,7 +173,7 @@ def hamming_attack_get_indices(
         verbose=verbose
     )
     X_adv = P0.clone()
-    deviations = torch.abs(P_adv - P0).numpy()
+    deviations = torch.abs(P_adv - P0).cpu().numpy()
     tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
     tupled.sort(key = lambda a : a[0], reverse=True)
     flip_indices = list(map(lambda a : a[1:], tupled))
@@ -249,7 +249,6 @@ def boosted_hamming_attack(
     N_MC,
     norm,
     rand_minmax,
-    early_stopping=False,
     verbose = False
 ):
     """

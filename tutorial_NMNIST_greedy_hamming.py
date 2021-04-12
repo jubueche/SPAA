@@ -13,7 +13,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 bmnist_dataloader = BMNISTDataLoader()
 
 # - Train the CNN
-ann_binary_mnist = train_ann_binary_mnist()
+ann_binary_mnist = train_ann_binary_mnist().to(device)
 
 # - Get the probabilistic network
 prob_net = get_prob_net_continuous()
@@ -76,11 +76,11 @@ for idx, (data,target) in enumerate(data_loader_test):
         verbose=verbose
     )
 
-    X_adv_scar = return_dict_scar["X_adv"]
+    X_adv_scar = return_dict_scar["X_adv"].to(device)
     num_flipped_scar = return_dict_scar["L0"]
-    X_adv_boosted = return_dict_boosted["X_adv"]
+    X_adv_boosted = return_dict_boosted["X_adv"].to(device)
     num_flipped_boosted = return_dict_boosted["L0"]
-    X_adv = return_dict["X_adv"]
+    X_adv = return_dict["X_adv"].to(device)
     num_flipped = return_dict["L0"]
 
     model_pred = get_prediction(ann_binary_mnist, X0, "non_prob")
@@ -94,11 +94,11 @@ for idx, (data,target) in enumerate(data_loader_test):
     break
 
 plt.subplot(141)
-plt.imshow(torch.squeeze(X0)); plt.title("Orig.")
+plt.imshow(torch.squeeze(X0.cpu())); plt.title("Orig.")
 plt.subplot(142)
-plt.imshow(torch.squeeze(X_adv)); plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
+plt.imshow(torch.squeeze(X_adv.cpu())); plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
 plt.subplot(143)
-plt.imshow(torch.squeeze(X_adv_boosted)); plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
+plt.imshow(torch.squeeze(X_adv_boosted.cpu())); plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
 plt.subplot(144)
-plt.imshow(torch.squeeze(X_adv_scar)); plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
+plt.imshow(torch.squeeze(X_adv_scar.cpu())); plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
 plt.show()

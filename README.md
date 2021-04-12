@@ -5,6 +5,7 @@ Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 - Install cleverhans using ```pip install git+https://github.com/cleverhans-lab/cleverhans.git#egg=cleverhans```
 - Install Sinabs ```pip install sinabs```
 - Install pytorch ```pip install torch```
+- Install aermanager ```pip install aermanager```
 
 ## Tutorial
 Start by executing ```python tutorial_NMNIST.py``` to see if everything works fine.

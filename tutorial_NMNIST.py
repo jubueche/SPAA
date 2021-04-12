@@ -27,16 +27,17 @@ P0 = torch.clamp(P0, 0.0, 1.0)
 model_pred = get_prediction(prob_net, P0)
 
 # - Attack parameters
-N_pgd = 25
+N_pgd = 50
 N_MC = 10
 eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
 norm = 2
 hamming_distance_eps = 0.0025
+k = 50
 
-return_dict = hamming_attack(
-    hamming_distance_eps=hamming_distance_eps,
+return_dict = boosted_hamming_attack(
+    k=k,
     prob_net=prob_net,
     P0=P0,
     eps=eps,
@@ -45,7 +46,6 @@ return_dict = hamming_attack(
     N_MC=N_MC,
     norm=norm,
     rand_minmax=rand_minmax,
-    early_stopping=True,
     verbose=True
 )
 
@@ -104,6 +104,6 @@ plot_attacked_prob(
     prob_net,
     N_rows=2,
     N_cols=2,
-    data=[(torch.clamp(torch.sum(X_adv,1),0.0,1.0),model_pred_attack_hamming) for _ in range(2*2)],
+    data=[(torch.clamp(torch.sum(X_adv.cpu(),1),0.0,1.0),model_pred_attack_hamming) for _ in range(2*2)],
     figname=3
 )

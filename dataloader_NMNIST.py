@@ -24,7 +24,7 @@ class NMNISTDataLoader:
 
         # - Download the data if not already exist
         def load_n_extract(lab, url):
-            if not (self.path / f"N-MNIST/{lab}.zip").exists():
+            if not ((self.path / f"N-MNIST/Test/").exists() and (self.path / f"N-MNIST/Train/").exists()) :
                 urllib.request.urlretrieve(url, self.path / f"N-MNIST/{lab}.zip")
                 with zipfile.ZipFile(self.path / f"N-MNIST/{lab}.zip", 'r') as f:
                     f.extractall(self.path / "N-MNIST/")
