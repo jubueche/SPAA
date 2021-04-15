@@ -1,5 +1,4 @@
 from videofig import videofig
-from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
 import torch
 from experiment_utils import *
@@ -33,12 +32,29 @@ data_loader_test = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, 
 for idx, (data,target) in enumerate(data_loader_test):
     X0 = data.to(device)
 
-    if idx < 5:
+    print(idx)
+
+    if idx < 12:
         continue
 
     # if not (target == 0):
     #     continue
     
+    return_dict_non_prob = non_prob_pgd(
+        hamming_distance_eps=hamming_distance_eps,
+        net=ann_binary_mnist,
+        X0=X0,
+        round_fn=lambda x : torch.round(x), 
+        eps=eps,
+        eps_iter=eps_iter,
+        N_pgd=N_pgd,
+        norm=norm,
+        rand_minmax=rand_minmax,
+        boost=False,
+        early_stopping=True,
+        verbose=True
+    )
+
     return_dict = hamming_attack(
         hamming_distance_eps=hamming_distance_eps,
         prob_net=prob_net,
@@ -64,7 +80,7 @@ for idx, (data,target) in enumerate(data_loader_test):
     )
 
     return_dict_boosted = boosted_hamming_attack(
-        k=25,
+        k=50,
         prob_net=prob_net,
         P0=X0,
         eps=eps,
@@ -76,6 +92,8 @@ for idx, (data,target) in enumerate(data_loader_test):
         verbose=verbose
     )
 
+    X_adv_non_prob = return_dict_non_prob["X_adv"].to(device)
+    num_flipped_non_prob = return_dict_non_prob["L0"]
     X_adv_scar = return_dict_scar["X_adv"].to(device)
     num_flipped_scar = return_dict_scar["L0"]
     X_adv_boosted = return_dict_boosted["X_adv"].to(device)
@@ -83,22 +101,26 @@ for idx, (data,target) in enumerate(data_loader_test):
     X_adv = return_dict["X_adv"].to(device)
     num_flipped = return_dict["L0"]
 
+    model_pred_non_prob = get_prediction(ann_binary_mnist, X_adv_non_prob, "non_prob")
     model_pred = get_prediction(ann_binary_mnist, X0, "non_prob")
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
+    print(f"Model: {int(model_pred)} Non_prob: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
     print(f"Model: {int(model_pred)} Scar: {int(model_pred_scar)} with L_0 = {num_flipped_scar}")
     print(f"Model: {int(model_pred)} Boosted Prob.: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
     print(f"Model: {int(model_pred)} Prob.: {int(model_pred_prob)} with L_0 = {num_flipped}")
 
     break
 
-plt.subplot(141)
+plt.subplot(151)
 plt.imshow(torch.squeeze(X0.cpu())); plt.title("Orig.")
-plt.subplot(142)
+plt.subplot(152)
 plt.imshow(torch.squeeze(X_adv.cpu())); plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
-plt.subplot(143)
+plt.subplot(153)
 plt.imshow(torch.squeeze(X_adv_boosted.cpu())); plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
-plt.subplot(144)
+plt.subplot(154)
 plt.imshow(torch.squeeze(X_adv_scar.cpu())); plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
+plt.subplot(155)
+plt.imshow(torch.squeeze(X_adv_non_prob.cpu())); plt.title(f"Adv. non prob.: {int(model_pred_non_prob)}")
 plt.show()

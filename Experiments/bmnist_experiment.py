@@ -24,8 +24,8 @@ class bmnist_experiment:
         k = 50 # - For Boosted Prob
         thresh = 0.1 # - For SCAR
         early_stopping = True
-        verbose = True
-        limit = -1
+        verbose = False
+        limit = 100
         
         grid = configure(grid, {
             "N_pgd":N_pgd,

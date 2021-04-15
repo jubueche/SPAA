@@ -17,6 +17,8 @@ import itertools
 import functools
 import time
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from torch.multiprocessing import Pool
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -179,6 +181,117 @@ def hamming_attack_get_indices(
     flip_indices = list(map(lambda a : a[1:], tupled))
     return flip_indices
 
+def non_prob_pgd(
+    hamming_distance_eps,
+    net,
+    X0,
+    round_fn,
+    eps,
+    eps_iter,
+    N_pgd,
+    norm,
+    rand_minmax,
+    boost=False,
+    early_stopping=False,
+    verbose=False
+):
+    """
+    Perform non-probabilistic PGD on binary input.
+    In each iteration of PGD, the gradient is calculated w.r.t. a binarized image. The gradients are then used
+    to update a continuous version of the image, clipped between 0 and 1. In the next iteration, the new
+    image is sampled from the continuous version using the round_fn. round_fn should be a function taking
+    continuous values between 0 and 1 and outputting a binarized version of the input.
+    E.g. round_fn = lambda X : torch.round(X)
+    """
+    if norm == "2":
+        norm = 2
+    if norm == "np.inf":
+        norm = np.inf
+    assert norm in [np.inf, 2], "Norm not supported"
+    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
+    assert eps > eps_iter, "Eps must be bigger than eps_iter"
+    assert eps >= rand_minmax, "rand_minmax should be smaller than or equal to eps"
+    assert ((X0 == 0.0) | (X0 == 1.0)).all(), "X0 must be 0 or 1"
+    t0 = time.time()
+    hamming_distance = int(np.prod(X0.shape) * hamming_distance_eps)
+    X_adv = X0.clone()
+
+    y = get_prediction(net, X0, mode="non_prob")
+    eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
+    eta = clip_eta(eta, norm, eps)
+    X_adv_cont = X0 * (1 - eta) + (1 - X0) * eta
+    X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
+
+    for i in range(N_pgd):
+        if verbose:
+            print(f"Attack {i}/{N_pgd}")
+
+        X_adv_tmp = get_mc_P_adv(net, round_fn(X_adv_cont), y, eps_iter, norm, loss_fn, 1)
+        eta_tmp = X_adv_tmp - round_fn(X_adv_cont) # - Extract what was added to the rounded input
+        X_adv_cont += eta_tmp
+        eta = X_adv_cont - X0
+        eta = clip_eta(eta, norm, eps)
+        X_adv_cont = X0 + eta
+        X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
+
+    deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
+    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
+    tupled.sort(key = lambda a : a[0], reverse=True)
+    flip_indices = list(map(lambda a : a[1:], tupled))
+    n_queries = 2 + N_pgd
+    
+    def confidence(X):
+        return F.softmax(get_prediction_raw(net, X, mode="non_prob"),dim=0)[y]
+
+    def get_next_index(X_adv, index_dict):
+        if not boost:
+            best_point = list(index_dict.keys())[0] # - Just return the first key/index
+        else:
+            F_X_adv = confidence(X_adv)
+            if verbose:
+                print(f"Confidence: {F_X_adv}")
+            X_tmp = X_adv.clone()
+            best_delta_conf = -np.inf
+            best_point = None
+            for p in index_dict:
+                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
+                d_conf = F_X_adv - confidence(X_tmp)
+                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip back
+                if d_conf >= best_delta_conf:
+                    best_delta_conf = d_conf
+                    best_point = p
+        index_dict.pop(best_point, None)
+        return best_point
+
+    index_dict = {}
+    for i in flip_indices:
+        index_dict[i] = 0.0 # - Dummy value
+    for idx in range(len(flip_indices)):
+        if idx == hamming_distance:
+            break
+        if early_stopping:
+            n_queries += 1
+        if early_stopping and (not get_prediction(net, X_adv, mode="non_prob") == y):
+            if verbose:
+                print(f"Used Hamming distance {idx}")
+            break
+        if boost:
+            n_queries += len(list(index_dict.keys()))
+        flip_index = get_next_index(X_adv, index_dict)
+        X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
+    if not early_stopping:
+        assert torch.sum(torch.abs(X0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
+        
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = idx
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
+    return return_dict
 
 def hamming_attack(
     hamming_distance_eps,
@@ -875,13 +988,21 @@ def get_prob_attack_robustness(
 
     return np.mean(np.array(defense_probabilities))
 
-def get_data_loader_from_model(model):
+def get_data_loader_from_model(model, batch_size=1, max_size=10000):
     if model['architecture'] == "NMNIST":
+        if batch_size == -1:
+            assert False, "The following needs to be tested:batch size -1"
+            batch_size = nmnist_dataloader.mnist_test_ds.__len__()
         nmnist_dataloader = NMNISTDataLoader()
-        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
+        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "BMNIST":
         bmnist_dataloader = BMNISTDataLoader()
-        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=1)
+        if batch_size == -1:
+            ds_len = bmnist_dataloader.mnist_test_ds.__len__()
+            batch_size = ds_len
+            if ds_len > max_size:
+                batch_size = max_size
+        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=batch_size)
     else:
         assert model['architecture'] in ["NMNIST","BMNIST"], "No other architecture added so far"
     return data_loader
@@ -969,37 +1090,52 @@ def scar_attack_on_test_set(
     return evaluate_on_test_set(model, limit, attack_fn)
 
 def evaluate_on_test_set(model, limit, attack_fn):
-    data_loader = get_data_loader_from_model(model)
-
-    success = []
-    time_elapsed = []
-    L0_required = []
-    n_queries = []
-    targets = []
-    predicted = []
-    predicted_attacked = []
-
-    for idx,(batch,target) in enumerate(data_loader):
-        if idx == limit:
-            break
-        X0 = batch.to(device)
-
-        d = attack_fn(X0)
-        success.append(d["success"])
-        time_elapsed.append(d["elapsed_time"])
-        L0_required.append(d["L0"])
-        n_queries.append(d["n_queries"])
-        predicted.append(d["predicted"])
-        predicted_attacked.append(d["predicted_attacked"])
-        targets.append(int(target))
+    data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
+    N_count = 0
+    split_size = 10
 
     ret = {}
-    ret["success"] = success 
-    ret["elapsed_time"] = time_elapsed
-    ret["L0"] = L0_required
-    ret["n_queries"] = n_queries
-    ret["target"] = targets
-    ret["predicted"] = predicted
-    ret["predicted_attacked"] = predicted_attacked
-    return ret
+    ret["success"] = []
+    ret["elapsed_time"] = []
+    ret["L0"] = []
+    ret["n_queries"] = []
+    ret["targets"] = []
+    ret["predicted"] = []
+    ret["predicted_attacked"] = []
 
+    def f(X_batched,targets,attack_fn,idx):
+        ret_f = {"success":[], "elapsed_time":[], "L0":[], "n_queries":[], "targets":[], "predicted":[], "predicted_attacked":[]}
+        for i in range(X_batched.shape[0]):
+            print(f"{i}/{X_batched.shape[0]}")
+            X0 = X_batched[i]
+            X0 = X0.reshape((1,) + X0.shape)
+            target = int(targets[i])
+            d = attack_fn(X0)
+            d.pop("X_adv")
+            for key in d:
+                ret_f[key].append(d[key])
+            ret_f["targets"].append(target)
+        return ret_f,idx
+
+    for batch,target in data_loader:
+        if N_count >= limit:
+            break
+        X = batch.to(device)
+        N_count += X.shape[0]
+        X_list = list(torch.split(X, split_size))
+        target_list = list(torch.split(target, split_size))
+
+        with ThreadPoolExecutor(max_workers=None) as executor:
+            parallel_results = []
+            futures = [executor.submit(f,el,t,attack_fn,idx) for idx,(el,t) in enumerate(zip(X_list,target_list))]
+            for future in as_completed(futures):
+                result = future.result()
+                parallel_results.append(result)
+            # - Sort the results
+            parallel_results = sorted(parallel_results, key=lambda k: k[1])
+
+            for ret_f,idx in parallel_results:
+                for key in ret_f:
+                    ret[key].append(ret_f[key])
+    
+    return ret
