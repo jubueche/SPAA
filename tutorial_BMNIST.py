@@ -1,7 +1,15 @@
 from dataloader_BMNIST import BMNISTDataLoader
 import torch
-from experiment_utils import *
 import matplotlib.pyplot as plt
+import random
+
+from networks import train_ann_binary_mnist, get_prob_net_continuous
+from sparsefool import sparsefool
+from attacks import non_prob_pgd, hamming_attack, boosted_hamming_attack, scar_attack
+from utils import get_prediction, reparameterization_bernoulli
+
+# - Seed
+random.seed(42)
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
