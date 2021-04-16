@@ -318,7 +318,7 @@ def deepfool(
     probabilistic=False,
     rand_minmax=0.1,
 ):
-    # assert ((im == 0.0) | (im == 1.0)).all(), "Input must either 0 or 1"
+    n_queries = 0
     X0 = deepcopy(im)
 
     if probabilistic:
@@ -326,6 +326,7 @@ def deepfool(
         X0 = X0 * (1 - eta) + (1 - X0) * eta
         X0 = torch.clamp(X0, 0.0, 1.0)
 
+    n_queries += 1
     f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy().flatten()
     num_classes = len(f_image)
     input_shape = X0.size()
@@ -380,6 +381,7 @@ def deepfool(
         else:
             check_fool = X0 + (1 + overshoot) * r_tot
 
+        n_queries += 1
         k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data).item()
 
         loop_i += 1
@@ -388,6 +390,7 @@ def deepfool(
         x = Variable(round_fn(X_adv), requires_grad=True)
     else:
         x = Variable(X_adv, requires_grad=True)
+    n_queries += 1
     fs = net.forward(x)
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
     grad = torch.nan_to_num(deepcopy(x.grad.data), nan=0.0)
@@ -397,7 +400,7 @@ def deepfool(
     X_adv = X0 + r_tot
     X_adv = torch.clamp(X_adv, 0.0, 1.0)
 
-    return grad, X_adv
+    return grad, X_adv, n_queries
 
 def sparsefool(
     x_0,
@@ -412,9 +415,12 @@ def sparsefool(
     device="cuda",
     round_fn=torch.round,
     probabilistic=False,
-    rand_minmax=0.1
+    rand_minmax=0.1,
+    early_stopping=False,
+    boost=False,
 ):
-
+    t0 = time.time()
+    n_queries = 1
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
 
     x_i = deepcopy(x_0)
@@ -425,7 +431,7 @@ def sparsefool(
 
     while fool_label == pred_label and loops < max_iter:
 
-        normal, x_adv = deepfool(
+        normal, x_adv, n_queries_deepfool = deepfool(
             im=x_i,
             net=net,
             lambda_fac=lambda_,
@@ -442,19 +448,46 @@ def sparsefool(
         fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
         fool_im = clip_image_values(fool_im, lb, ub)
         if not probabilistic:
-            fool_label = torch.argmax(net.forward(Variable(round_fn(fool_im), requires_grad=True)).data).item()
+            fool_im = round_fn(fool_im)
         else:
-            fool_label = torch.argmax(net.forward(Variable(fool_im, requires_grad=True)).data).item()
+            fool_im = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
 
+        fool_label = get_prediction(net, fool_im, mode="non_prob")
+
+        n_queries += n_queries_deepfool + 1
         loops += 1
 
-    r = fool_im - x_0
-    if not probabilistic:
-        fool_im = round_fn(fool_im)
+    assert ((fool_im == 0.0) | (fool_im == 1.0)).all(), "Fool image must be all 0 or 1"
+    deviations = torch.abs(fool_im - x_0).cpu().numpy()
+    if early_stopping:
+        where_flipped = np.where(deviations == 1.0)
+        X_adv = deepcopy(x_0)
+        for idx in range(len(where_flipped[0])):
+            n_queries += 1
+            if pred_label != get_prediction(net, X_adv, mode="non_prob"):
+                break
+            else:
+                flip_index = tuple([el[idx] for el in where_flipped])
+                X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
+        L0 = idx
+    else:
+        L0 = int(np.sum(deviations))
+        X_adv = fool_im
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) else 0
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = L0
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = pred_label
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
+    return return_dict
+
     return fool_im, r, pred_label, fool_label, loops
 
 def linear_solver(x_0, normal, boundary_point, lb, ub):
-
     input_shape = x_0.size()
 
     coord_vec = deepcopy(normal)
