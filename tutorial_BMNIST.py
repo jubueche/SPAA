@@ -21,7 +21,7 @@ N_MC = 10
 eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
-rand_minmax_deepfool = 0.05
+rand_minmax_deepfool = 0.01
 norm = 2
 hamming_distance_eps = 400 / 784
 verbose = False
@@ -39,28 +39,22 @@ for idx, (data, target) in enumerate(data_loader_test):
 
     # if not (target == 0):
     #     continue
-
-    _, X_adv_deepfool_prob = deepfool(
-        im=X0,
-        net=prob_net,
-        lambda_fac=2.0,
-        overshoot=0.02,
-        max_iter=50,
+    X_adv_sparse_fool, _, _, model_pred_sparsefool, _ = sparsefool(
+        x_0=X0,
+        net=ann_binary_mnist,
+        lambda_=0.5,
         device=device,
         round_fn=round_fn,
-        probabilistic=True,
-        rand_minmax=rand_minmax_deepfool,
+        probabilistic=False
     )
 
-    _, X_adv_deepfool = deepfool(
-        im=X0,
-        net=ann_binary_mnist,
-        lambda_fac=2.0,
-        overshoot=0.02,
-        max_iter=50,
+    X_adv_sparse_fool_prob, _, _, model_pred_sparsefool_prob, _ = sparsefool(
+        x_0=X0,
+        net=prob_net,
+        lambda_=0.5,
         device=device,
-        round_fn=round_fn,
-        probabilistic=False,
+        probabilistic=True,
+        rand_minmax=rand_minmax_deepfool
     )
 
     return_dict_non_prob = non_prob_pgd(
@@ -125,15 +119,15 @@ for idx, (data, target) in enumerate(data_loader_test):
     num_flipped = return_dict["L0"]
 
     model_pred = get_prediction(ann_binary_mnist, X0, "non_prob")
-    model_pred_deepfool_l2 = get_prediction(ann_binary_mnist, round_fn(X_adv_deepfool), "non_prob")
-    model_pred_deepfool_l2_prob = get_prediction(prob_net, X_adv_deepfool_prob, "prob")
+    model_pred_sparsefool = get_prediction(ann_binary_mnist, round_fn(X_adv_sparse_fool), "non_prob")
+    model_pred_sparsefool_prob = get_prediction(prob_net, X_adv_sparse_fool_prob, "prob")
     model_pred_non_prob = get_prediction(ann_binary_mnist, X_adv_non_prob, "non_prob")
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
 
-    print(f"Model: {int(model_pred)} DeepFool: {int(model_pred_deepfool_l2)}")
-    print(f"Model: {int(model_pred)} DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
+    print(f"Model: {int(model_pred)} SparseFool: {int(model_pred_sparsefool)}")
+    print(f"Model: {int(model_pred)} SparseFool Prob: {int(model_pred_sparsefool_prob)}")
     print(f"Model: {int(model_pred)} Non_prob: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
     print(f"Model: {int(model_pred)} Scar: {int(model_pred_scar)} with L_0 = {num_flipped_scar}")
     print(f"Model: {int(model_pred)} Boosted Prob.: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
@@ -158,15 +152,11 @@ plt.subplot(185)
 plt.imshow(torch.squeeze(X_adv_non_prob.cpu()))
 plt.title(f"Adv. non prob.: {int(model_pred_non_prob)}")
 plt.subplot(186)
-plt.imshow(torch.squeeze(round_fn(X_adv_deepfool).cpu()))
-plt.title(f"Adv. DeepFool: {int(model_pred_deepfool_l2)}")
+plt.imshow(torch.squeeze(round_fn(X_adv_sparse_fool).cpu()))
+plt.title(f"Adv. SparseFool: {int(model_pred_sparsefool)}")
 plt.subplot(187)
-plt.imshow(
-    torch.squeeze(
-        torch.round(
-            reparameterization_bernoulli(X_adv_deepfool_prob, temperature=0.01)
-        ).cpu()
-    )
-)
-plt.title(f"Adv. DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
+plt.imshow(torch.squeeze(
+    torch.round(reparameterization_bernoulli(X_adv_sparse_fool_prob, temperature=0.01)).cpu()
+))
+plt.title(f"Adv. SparseFool Prob: {int(model_pred_sparsefool_prob)}")
 plt.show()

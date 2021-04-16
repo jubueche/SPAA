@@ -318,7 +318,7 @@ def deepfool(
     probabilistic=False,
     rand_minmax=0.1,
 ):
-    assert ((im == 0.0) | (im == 1.0)).all(), "Input must either 0 or 1"
+    # assert ((im == 0.0) | (im == 1.0)).all(), "Input must either 0 or 1"
     X0 = deepcopy(im)
 
     if probabilistic:
@@ -390,8 +390,8 @@ def deepfool(
         x = Variable(X_adv, requires_grad=True)
     fs = net.forward(x)
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
-    grad = deepcopy(x.grad.data)
-    grad = grad / grad.norm()
+    grad = torch.nan_to_num(deepcopy(x.grad.data), nan=0.0)
+    grad = grad / (grad.norm() + 1e-10)
 
     r_tot = lambda_fac * r_tot
     X_adv = X0 + r_tot
@@ -399,6 +399,102 @@ def deepfool(
 
     return grad, X_adv
 
+def sparsefool(
+    x_0,
+    net,
+    lb=0.0,
+    ub=1.0,
+    lambda_=2.,
+    max_iter=20,
+    epsilon=0.02,
+    overshoot=0.02,
+    max_iter_deep_fool=50,
+    device="cuda",
+    round_fn=torch.round,
+    probabilistic=False,
+    rand_minmax=0.1
+):
+
+    pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
+
+    x_i = deepcopy(x_0)
+    fool_im = deepcopy(x_i)
+
+    fool_label = pred_label
+    loops = 0
+
+    while fool_label == pred_label and loops < max_iter:
+
+        normal, x_adv = deepfool(
+            im=x_i,
+            net=net,
+            lambda_fac=lambda_,
+            overshoot=overshoot,
+            max_iter=max_iter_deep_fool,
+            device=device,
+            round_fn=round_fn,
+            probabilistic=probabilistic,
+            rand_minmax=rand_minmax
+        )
+
+        x_i = linear_solver(x_i, normal, x_adv, lb, ub)
+
+        fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
+        fool_im = clip_image_values(fool_im, lb, ub)
+        if not probabilistic:
+            fool_label = torch.argmax(net.forward(Variable(round_fn(fool_im), requires_grad=True)).data).item()
+        else:
+            fool_label = torch.argmax(net.forward(Variable(fool_im, requires_grad=True)).data).item()
+
+        loops += 1
+
+    r = fool_im - x_0
+    if not probabilistic:
+        fool_im = round_fn(fool_im)
+    return fool_im, r, pred_label, fool_label, loops
+
+def linear_solver(x_0, normal, boundary_point, lb, ub):
+
+    input_shape = x_0.size()
+
+    coord_vec = deepcopy(normal)
+    plane_normal = deepcopy(coord_vec).view(-1)
+    plane_point = deepcopy(boundary_point).view(-1)
+
+    x_i = deepcopy(x_0)
+
+    f_k = torch.dot(plane_normal, x_0.view(-1) - plane_point)
+    sign_true = f_k.sign().item()
+
+    beta = 0.001 * sign_true
+    current_sign = sign_true
+
+    while current_sign == sign_true and coord_vec.nonzero().size()[0] > 0:
+
+        f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point) + beta
+
+        pert = f_k.abs() / coord_vec.abs().max()
+
+        mask = torch.zeros_like(coord_vec)
+        mask[np.unravel_index(torch.argmax(coord_vec.abs()), input_shape)] = 1.
+
+        r_i = torch.clamp(pert, min=1e-4) * mask * coord_vec.sign()
+
+        x_i = x_i + r_i
+        x_i = clip_image_values(x_i, lb, ub)
+
+        f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point)
+        current_sign = f_k.sign().item()
+
+        coord_vec[r_i != 0] = 0
+
+    return x_i
+
+def clip_image_values(x, minv, maxv):
+    return torch.clamp(x, minv, maxv)
+    # x = torch.max(x, minv)
+    # x = torch.min(x, maxv)
+    # return x
 
 def hamming_attack(
     hamming_distance_eps,
