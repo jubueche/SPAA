@@ -1,9 +1,7 @@
-from videofig import videofig
 from dataloader_BMNIST import BMNISTDataLoader
 import torch
 from experiment_utils import *
 import matplotlib.pyplot as plt
-import sys
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -30,8 +28,10 @@ verbose = False
 round_fn = torch.round
 
 # - Test data set
-data_loader_test = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=1)
-for idx, (data,target) in enumerate(data_loader_test):
+data_loader_test = bmnist_dataloader.get_data_loader(
+    dset="test", shuffle=True, num_workers=4, batch_size=1
+)
+for idx, (data, target) in enumerate(data_loader_test):
     X0 = data.to(device)
 
     if idx < 5:
@@ -39,7 +39,7 @@ for idx, (data,target) in enumerate(data_loader_test):
 
     # if not (target == 0):
     #     continue
-    
+
     _, X_adv_deepfool_prob = deepfool(
         im=X0,
         net=prob_net,
@@ -49,7 +49,7 @@ for idx, (data,target) in enumerate(data_loader_test):
         device=device,
         round_fn=round_fn,
         probabilistic=True,
-        rand_minmax=rand_minmax_deepfool
+        rand_minmax=rand_minmax_deepfool,
     )
 
     _, X_adv_deepfool = deepfool(
@@ -60,14 +60,14 @@ for idx, (data,target) in enumerate(data_loader_test):
         max_iter=50,
         device=device,
         round_fn=round_fn,
-        probabilistic=False
+        probabilistic=False,
     )
 
     return_dict_non_prob = non_prob_pgd(
         hamming_distance_eps=hamming_distance_eps,
         net=ann_binary_mnist,
         X0=X0,
-        round_fn=lambda x : torch.round(x), 
+        round_fn=lambda x: torch.round(x),
         eps=eps,
         eps_iter=eps_iter,
         N_pgd=N_pgd,
@@ -75,7 +75,7 @@ for idx, (data,target) in enumerate(data_loader_test):
         rand_minmax=rand_minmax,
         boost=False,
         early_stopping=True,
-        verbose=True
+        verbose=True,
     )
 
     return_dict = hamming_attack(
@@ -89,7 +89,7 @@ for idx, (data,target) in enumerate(data_loader_test):
         norm=norm,
         rand_minmax=rand_minmax,
         early_stopping=True,
-        verbose=True
+        verbose=True,
     )
 
     # - Attack using greedy attack from https://openreview.net/pdf?id=xCm8kiWRiBT
@@ -99,7 +99,7 @@ for idx, (data,target) in enumerate(data_loader_test):
         X0=X0,
         thresh=0.1,
         early_stopping=True,
-        verbose=True
+        verbose=True,
     )
 
     return_dict_boosted = boosted_hamming_attack(
@@ -112,7 +112,7 @@ for idx, (data,target) in enumerate(data_loader_test):
         N_MC=N_MC,
         norm=norm,
         rand_minmax=rand_minmax,
-        verbose=verbose
+        verbose=verbose,
     )
 
     X_adv_non_prob = return_dict_non_prob["X_adv"].to(device)
@@ -131,6 +131,7 @@ for idx, (data,target) in enumerate(data_loader_test):
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
+
     print(f"Model: {int(model_pred)} DeepFool: {int(model_pred_deepfool_l2)}")
     print(f"Model: {int(model_pred)} DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
     print(f"Model: {int(model_pred)} Non_prob: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
@@ -142,17 +143,30 @@ for idx, (data,target) in enumerate(data_loader_test):
 
 plt.figure(figsize=(20, 7))
 plt.subplot(181)
-plt.imshow(torch.squeeze(X0.cpu())); plt.title("Orig.")
+plt.imshow(torch.squeeze(X0.cpu()))
+plt.title("Orig.")
 plt.subplot(182)
-plt.imshow(torch.squeeze(X_adv.cpu())); plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
+plt.imshow(torch.squeeze(X_adv.cpu()))
+plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
 plt.subplot(183)
-plt.imshow(torch.squeeze(X_adv_boosted.cpu())); plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
+plt.imshow(torch.squeeze(X_adv_boosted.cpu()))
+plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
 plt.subplot(184)
-plt.imshow(torch.squeeze(X_adv_scar.cpu())); plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
+plt.imshow(torch.squeeze(X_adv_scar.cpu()))
+plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
 plt.subplot(185)
-plt.imshow(torch.squeeze(X_adv_non_prob.cpu())); plt.title(f"Adv. non prob.: {int(model_pred_non_prob)}")
+plt.imshow(torch.squeeze(X_adv_non_prob.cpu()))
+plt.title(f"Adv. non prob.: {int(model_pred_non_prob)}")
 plt.subplot(186)
-plt.imshow(torch.squeeze(round_fn(X_adv_deepfool).cpu())); plt.title(f"Adv. DeepFool: {int(model_pred_deepfool_l2)}")
+plt.imshow(torch.squeeze(round_fn(X_adv_deepfool).cpu()))
+plt.title(f"Adv. DeepFool: {int(model_pred_deepfool_l2)}")
 plt.subplot(187)
-plt.imshow(torch.squeeze(torch.round(reparameterization_bernoulli(X_adv_deepfool_prob, temperature=0.01)).cpu())); plt.title(f"Adv. DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
+plt.imshow(
+    torch.squeeze(
+        torch.round(
+            reparameterization_bernoulli(X_adv_deepfool_prob, temperature=0.01)
+        ).cpu()
+    )
+)
+plt.title(f"Adv. DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
 plt.show()

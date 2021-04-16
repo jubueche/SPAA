@@ -20,7 +20,6 @@ import functools
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from torch.multiprocessing import Pool
 from copy import deepcopy
 
 # - Set device
@@ -28,6 +27,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # - Set random seed
 random.seed(42)
+
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -42,8 +42,8 @@ class ProbNetwork(SinabsNetwork):
         model,
         spk_model,
         input_shape,
-        synops = False,
-        temperature = 0.01
+        synops=False,
+        temperature=0.01
     ):
         self.temperature = temperature
         super().__init__(model, spk_model, input_shape, synops)
@@ -54,6 +54,7 @@ class ProbNetwork(SinabsNetwork):
 
     def forward_np(self, X):
         return super().forward(X)
+
 
 class ProbNetworkContinuous(torch.nn.Module):
     """
@@ -66,7 +67,7 @@ class ProbNetworkContinuous(torch.nn.Module):
     def __init__(
         self,
         model,
-        temperature = 0.01
+        temperature=0.01
     ):
         super(ProbNetworkContinuous, self).__init__()
         self.temperature = temperature
@@ -78,6 +79,7 @@ class ProbNetworkContinuous(torch.nn.Module):
 
     def forward_np(self, X):
         return self.model.forward(X)
+
 
 def reparameterization_bernoulli(
     P,
@@ -91,8 +93,11 @@ def reparameterization_bernoulli(
     # - Avoid -inf
     eps = 1e-20
     rand_unif = torch.rand(P.size(), device=P.device)
-    X = torch.sigmoid((torch.log(rand_unif+eps)-torch.log(1-rand_unif+eps)+torch.log(P+eps)-torch.log(1-P+eps))/temperature)
+    X = torch.sigmoid(
+        (torch.log(rand_unif + eps) - torch.log(1 - rand_unif + eps) + torch.log(P + eps) - torch.log(1 - P + eps)) / temperature
+    )
     return X
+
 
 def loss_fn(
     spike_out,
@@ -101,9 +106,10 @@ def loss_fn(
     """
     Loss function used to find the adversarial probabilities
     """
-    outputs = torch.reshape(torch.sum(spike_out,axis=0), (1,10))
+    outputs = torch.reshape(torch.sum(spike_out, axis=0), (1, 10))
     target = torch.tensor([target], device=spike_out.device)
     return F.cross_entropy(outputs, target)
+
 
 def get_grad(
     prob_net,
@@ -122,13 +128,15 @@ def get_grad(
     except:
         pass
     g = _fast_gradient_method_grad(
-            model_fn=prob_net,
-            x=P_adv,
-            eps=eps_iter,
-            norm=norm,
-            y=model_pred,
-            loss_fn=loss_fn)
+        model_fn=prob_net,
+        x=P_adv,
+        eps=eps_iter,
+        norm=norm,
+        y=model_pred,
+        loss_fn=loss_fn
+    )
     return g
+
 
 def get_mc_P_adv(
     prob_net,
@@ -151,6 +159,7 @@ def get_mc_P_adv(
     P_adv = P_adv + eta
     return P_adv
 
+
 def hamming_attack_get_indices(
     prob_net,
     P0,
@@ -160,7 +169,7 @@ def hamming_attack_get_indices(
     N_MC,
     norm,
     rand_minmax,
-    verbose = False
+    verbose=False
 ):
     """
     Perform probabilistic attack. Sort indices by largest deviation and return
@@ -177,12 +186,13 @@ def hamming_attack_get_indices(
         rand_minmax,
         verbose=verbose
     )
-    X_adv = P0.clone()
+    # X_adv = P0.clone()
     deviations = torch.abs(P_adv - P0).cpu().numpy()
-    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
-    tupled.sort(key = lambda a : a[0], reverse=True)
+    tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+    tupled.sort(key=lambda a : a[0], reverse=True)
     flip_indices = list(map(lambda a : a[1:], tupled))
     return flip_indices
+
 
 def non_prob_pgd(
     hamming_distance_eps,
@@ -230,7 +240,7 @@ def non_prob_pgd(
             print(f"Attack {i}/{N_pgd}")
 
         X_adv_tmp = get_mc_P_adv(net, round_fn(X_adv_cont), y, eps_iter, norm, loss_fn, 1)
-        eta_tmp = X_adv_tmp - round_fn(X_adv_cont) # - Extract what was added to the rounded input
+        eta_tmp = X_adv_tmp - round_fn(X_adv_cont)  # - Extract what was added to the rounded input
         X_adv_cont += eta_tmp
         eta = X_adv_cont - X0
         eta = clip_eta(eta, norm, eps)
@@ -238,17 +248,17 @@ def non_prob_pgd(
         X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
 
     deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
-    tupled = [(aa,) + el for (aa,el) in zip(deviations.flatten(),get_index_list(list(deviations.shape)))]
-    tupled.sort(key = lambda a : a[0], reverse=True)
+    tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+    tupled.sort(key=lambda a : a[0], reverse=True)
     flip_indices = list(map(lambda a : a[1:], tupled))
     n_queries = 2 + N_pgd
-    
+
     def confidence(X):
-        return F.softmax(get_prediction_raw(net, X, mode="non_prob"),dim=0)[y]
+        return F.softmax(get_prediction_raw(net, X, mode="non_prob"), dim=0)[y]
 
     def get_next_index(X_adv, index_dict):
         if not boost:
-            best_point = list(index_dict.keys())[0] # - Just return the first key/index
+            best_point = list(index_dict.keys())[0]  # - Just return the first key/index
         else:
             F_X_adv = confidence(X_adv)
             if verbose:
@@ -259,7 +269,7 @@ def non_prob_pgd(
             for p in index_dict:
                 X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
                 d_conf = F_X_adv - confidence(X_tmp)
-                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip back
+                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip back
                 if d_conf >= best_delta_conf:
                     best_delta_conf = d_conf
                     best_point = p
@@ -268,7 +278,7 @@ def non_prob_pgd(
 
     index_dict = {}
     for i in flip_indices:
-        index_dict[i] = 0.0 # - Dummy value
+        index_dict[i] = 0.0  # - Dummy value
     for idx in range(len(flip_indices)):
         if idx == hamming_distance:
             break
@@ -284,17 +294,18 @@ def non_prob_pgd(
         X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
     if not early_stopping:
         assert torch.sum(torch.abs(X0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
-        
+
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
-    return_dict["elapsed_time"] = t1-t0
+    return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = idx
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
+
 
 def deepfool(
     im,
@@ -335,7 +346,7 @@ def deepfool(
             x = Variable(round_fn(X_adv), requires_grad=True)
         else:
             x = Variable(X_adv, requires_grad=True)
-        
+
         fs = net.forward(x)
 
         pert = torch.Tensor([np.inf])[0].to(device)
@@ -364,7 +375,7 @@ def deepfool(
 
         X_adv = X_adv + r_i
 
-        if not probabilistic: 
+        if not probabilistic:
             check_fool = round_fn(X0 + (1 + overshoot) * r_tot)
         else:
             check_fool = X0 + (1 + overshoot) * r_tot
@@ -400,7 +411,7 @@ def hamming_attack(
     norm,
     rand_minmax,
     early_stopping=False,
-    verbose = False
+    verbose=False
 ):
     """
     Perform probabilistic attack. Sort by largest deviation
@@ -423,8 +434,8 @@ def hamming_attack(
         verbose=verbose
     )
     y = get_prediction(prob_net, P0, mode="non_prob")
-    n_queries = 2 + N_pgd * N_MC 
-    for idx,flip_index in enumerate(flip_indices):
+    n_queries = 2 + N_pgd * N_MC
+    for idx, flip_index in enumerate(flip_indices):
         if idx == hamming_distance:
             break
         if early_stopping:
@@ -436,17 +447,18 @@ def hamming_attack(
         X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
     if not early_stopping:
         assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
-    
+
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
-    return_dict["elapsed_time"] = t1-t0
+    return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = idx
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
     return return_dict
+
 
 def boosted_hamming_attack(
     k,
@@ -458,7 +470,7 @@ def boosted_hamming_attack(
     N_MC,
     norm,
     rand_minmax,
-    verbose = False
+    verbose=False
 ):
     """
     Perform standard attack. Pick k most-likely-to-flip indices and perform confidence search.
@@ -479,13 +491,14 @@ def boosted_hamming_attack(
         verbose=verbose
     )[:k]
     flip_indices_d = {}
-    flip_indices.reverse() # - Reverse so that highest prob. points are at the end. This causes that these points will be chosen if confidence remains 1
+    flip_indices.reverse()  # - Reverse so that highest prob. points are at the end. This causes that these points will be chosen if confidence remains 1
     for p in flip_indices:
-        flip_indices_d[p] = 0.0 # - Turn into dictionary
+        flip_indices_d[p] = 0.0  # - Turn into dictionary
     y = get_prediction(prob_net, P0, mode="non_prob")
     n_queries = 2 + N_pgd * N_MC
+
     def confidence(X):
-        return F.softmax(get_prediction_raw(prob_net, X, mode="non_prob"),dim=0)[y]
+        return F.softmax(get_prediction_raw(prob_net, X, mode="non_prob"), dim=0)[y]
     for idx in range(k):
         n_queries += 2
         if not get_prediction(prob_net, X_adv, mode="non_prob") == y:
@@ -500,23 +513,24 @@ def boosted_hamming_attack(
             n_queries += 1
             X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
             d_conf = F_X_adv - confidence(X_tmp)
-            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip back
+            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip back
             if d_conf >= best_delta_conf:
                 best_delta_conf = d_conf
                 best_point = p
         flip_indices_d.pop(best_point, None)
-        X_adv[best_point] = 1.0 if X_adv[best_point] == 0.0 else 0.0 # - Flip the best point
-    
+        X_adv[best_point] = 1.0 if X_adv[best_point] == 0.0 else 0.0  # - Flip the best point
+
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
-    return_dict["elapsed_time"] = t1-t0
+    return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = idx
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
     return return_dict
+
 
 def scar_attack(
     hamming_distance_eps,
@@ -534,76 +548,82 @@ def scar_attack(
     t0 = time.time()
     hamming_distance = int(np.prod(X0.shape) * hamming_distance_eps)
     X_adv = X0.clone()
-    y = get_prediction(net, X0, mode="non_prob") # - Use the model prediction, not the target label
+    y = get_prediction(net, X0, mode="non_prob")  # - Use the model prediction, not the target label
     # - Find initial point p', points are stored as (g_p, idx1, idx2, ... , idxN)
     # - Pick the middle point TODO What is better here?
-    points = {} # - Dicts are hash maps and tuples are hashable
-    flipped = {} # - Keep track of the bits that have been flipped
-    crossed_threshold = {} # - Keep track of points that crossed threshold, every point in here must be in points as well
-    max_point = tuple([0 for _ in range(len(X_adv.shape)+1)]) # - Keep track of the point that has the current biggest grad, init with (0,...,0)
+    points = {}  # - Dicts are hash maps and tuples are hashable
+    flipped = {}  # - Keep track of the bits that have been flipped
+    crossed_threshold = {}  # - Keep track of points that crossed threshold, every point in here must be in points as well
+    max_point = tuple([0 for _ in range(len(X_adv.shape) + 1)])  # - Keep track of the point that has the current biggest grad, init with (0,...,0)
     n_queries = 0
+
     def N(p, shape):
-        surround = [[x for x in [el-1,el,el+1] if 0 <= x < shape[idx]] for idx,el in enumerate(list(p))]
+        surround = [[x for x in [el - 1, el, el + 1] if 0 <= x < shape[idx]] for idx, el in enumerate(list(p))]
         n = list(itertools.product(*surround))
         n.remove(p)
         return n
+
     def get_neighbor_dict(points, flipped, p, shape):
         neighbors = N(p, shape)
         r = {}
         for n in neighbors:
-            if not n in flipped:
+            if n not in flipped:
                 if n in points:
                     r[n] = points[n]
                 else:
-                    r[n] = 0.0 # - This point was never visited
+                    r[n] = 0.0  # - This point was never visited
         return r
+
     def get_g_p(model_fn, pred, X_adv, p, F_X_adv):
         X_tmp = X_adv.clone()
-        X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0 # - Flip the bit
-        g_p = F_X_adv - F.softmax(get_prediction_raw(model_fn, X_tmp, mode="non_prob"),dim=0)[int(pred)]
+        X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip the bit
+        g_p = F_X_adv - F.softmax(get_prediction_raw(model_fn, X_tmp, mode="non_prob"), dim=0)[int(pred)]
         return g_p
+
     def is_boundary(X_adv, p):
         # - Get list of surrounding pixels along spatial dimension
-        surround = [p[:-2] + (i,j) for i in [p[-2]-1,p[-2],p[-2]+1] for j in [p[-1]-1,p[-1],p[-1]+1] if 0 <= i < X_adv.shape[-2] and 0 <= j < X_adv.shape[-1]]
-        return functools.reduce(lambda a,b:a or b, [X_adv[p] != X_adv[q] for q in surround], False)
+        surround = [p[:-2] + (i, j) for i in [p[-2] - 1, p[-2], p[-2] + 1] for j in [p[-1] - 1, p[-1], p[-1] + 1] if 0 <= i < X_adv.shape[-2] and 0 <= j < X_adv.shape[-1]]
+        return functools.reduce(lambda a, b: a or b, [X_adv[p] != X_adv[q] for q in surround], False)
+
     def get_boundary_dict(X_adv):
         boundary_set = {}
         idx_list = get_index_list(X_adv.shape)
         for p in idx_list:
-            if is_boundary(X_adv,p):
+            if is_boundary(X_adv, p):
                 boundary_set[p] = 0.0
         return boundary_set
+
     def update_boundary_dict(current_boundary_dict, flipped_point, X_updated, points, flipped):
         p = flipped_point
-        surround = [p[:-2] + (i,j) for i in [p[-2]-1,p[-2],p[-2]+1] for j in [p[-1]-1,p[-1],p[-1]+1] if 0 <= i < X_updated.shape[-2] and 0 <= j < X_updated.shape[-1]]
+        surround = [p[:-2] + (i, j) for i in [p[-2] - 1, p[-2], p[-2] + 1] for j in [p[-1] - 1, p[-1], p[-1] + 1] if 0 <= i < X_updated.shape[-2] and 0 <= j < X_updated.shape[-1]]
         for q in surround:
-            if (None == flipped.get(q, None)) and is_boundary(X_updated, q):
+            if (flipped.get(q, None) is None) and is_boundary(X_updated, q):
                 g_p = points.get(q)
-                if g_p == None:
+                if g_p is None:
                     g_p = 0.0
                 current_boundary_dict[q] = g_p
             else:
-                current_boundary_dict.pop(q, None) # - Delete from boundary set if it's not in boundary set anymore or never was in it
+                current_boundary_dict.pop(q, None)  # - Delete from boundary set if it's not in boundary set anymore or never was in it
         return current_boundary_dict
 
-    current_neighbor_dict = {} # get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
-    current_boundary_dict = get_boundary_dict(X0) 
+    current_neighbor_dict = {}  # get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
+    current_boundary_dict = get_boundary_dict(X0)
     num_flipped = 0
     while num_flipped < hamming_distance :
         if verbose:
             print(f"Queries: {n_queries}")
         # - Cache the confidence of the current adv. image
         output_raw = get_prediction_raw(net, X_adv, mode="non_prob")
-        F_X_adv = F.softmax(output_raw,dim=0)[int(y)]
+        F_X_adv = F.softmax(output_raw, dim=0)[int(y)]
         if verbose:
             print(f"Confidence: {float(F_X_adv)}")
-        
+
         if early_stopping and (not torch.argmax(output_raw) == y):
             break
-        
+
         n_queries += 1
-        max_point = max_point[:-1] + (0,) # - Reset the g_p value of max_point
-        
+        max_point = max_point[:-1] + (0,)  # - Reset the g_p value of max_point
+
         to_pop = []
         for p in crossed_threshold:
             g_p = get_g_p(net, y, X_adv, p, F_X_adv)
@@ -616,7 +636,7 @@ def scar_attack(
                 to_pop.append(p)
             points[p] = g_p
         for p in to_pop:
-            crossed_threshold.pop(p, None) # - Remove the point from crossed threshold dict
+            crossed_threshold.pop(p, None)  # - Remove the point from crossed threshold dict
         for p in current_neighbor_dict:
             g_p = get_g_p(net, y, X_adv, p, F_X_adv)
             n_queries += 1
@@ -624,7 +644,7 @@ def scar_attack(
                 max_point = p + (g_p,)
             if g_p >= thresh:
                 crossed_threshold[p] = g_p
-            points[p] = g_p # - Add or update the point's value
+            points[p] = g_p  # - Add or update the point's value
 
         if max_point[-1] < thresh:
             # - Find the best point in set of points that are on the boundary
@@ -638,15 +658,15 @@ def scar_attack(
         else:
             if verbose:
                 print(f"Threshold crossed: {max_point[-1]}")
-        
+
         # - Finally use the max point to update X_adv
-        p_flip = max_point[:-1] 
+        p_flip = max_point[:-1]
         X_adv[p_flip] = 1.0 if X_adv[p_flip] == 0.0 else 0.0
-        flipped[p_flip] = max_point[-1] # - Add to flipped dict
-        crossed_threshold.pop(p_flip, None) # - Remove from crossed_threshold dict
-        points.pop(p_flip, None) # - Remove from points dict
-        current_neighbor_dict = get_neighbor_dict(points, flipped, p_flip, X0.shape) # - Update the neighbors for the current flipped point
-        current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points, flipped) # - Update the boundary set for the new image
+        flipped[p_flip] = max_point[-1]  # - Add to flipped dict
+        crossed_threshold.pop(p_flip, None)  # - Remove from crossed_threshold dict
+        points.pop(p_flip, None)  # - Remove from points dict
+        current_neighbor_dict = get_neighbor_dict(points, flipped, p_flip, X0.shape)  # - Update the neighbors for the current flipped point
+        current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points, flipped)  # - Update the boundary set for the new image
         num_flipped += 1
         if verbose:
             print(f"Flipped {num_flipped} of {hamming_distance}")
@@ -658,7 +678,7 @@ def scar_attack(
     return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
     return_dict["X_adv"] = X_adv.cpu()
     return_dict["L0"] = num_flipped
-    return_dict["elapsed_time"] = t1-t0
+    return_dict["elapsed_time"] = t1 - t0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
@@ -667,9 +687,10 @@ def scar_attack(
 
 def get_index_list(dims):
     if len(dims) == 2:
-        return [(i,j) for i in range(dims[0]) for j in range(dims[1])]
+        return [(i, j) for i in range(dims[0]) for j in range(dims[1])]
     else:
         return [((i,) + el) for i in range(dims[0]) for el in get_index_list(dims[1:])]
+
 
 def prob_attack_pgd(
     prob_net,
@@ -680,7 +701,7 @@ def prob_attack_pgd(
     N_MC,
     norm,
     rand_minmax,
-    verbose = False
+    verbose=False
 ):
     """
     Probabilistic projected gradient descent attack. Evaluate network N_MC times by sampling from
@@ -728,6 +749,7 @@ def prob_attack_pgd(
 
     return P_adv
 
+
 def get_prediction(
     net,
     data,
@@ -739,6 +761,7 @@ def get_prediction(
     output = get_prediction_raw(net, data, mode)
     pred = output.argmax()
     return pred.cpu()
+
 
 def get_prediction_raw(
     net,
@@ -760,9 +783,10 @@ def get_prediction_raw(
         except:
             output = net.forward(data)
     else:
-        assert mode in ["prob","non_prob"], "Unknown mode"
+        assert mode in ["prob", "non_prob"], "Unknown mode"
     output = output.sum(axis=0)
     return output.cpu()
+
 
 def get_test_acc(
     net,
@@ -781,7 +805,8 @@ def get_test_acc(
         acc.append(correct)
         if len(acc) > limit:
             break
-    return sum(acc)/len(acc)*100
+    return sum(acc) / len(acc) * 100
+
 
 class Redraw(object):
     """
@@ -807,7 +832,7 @@ class Redraw(object):
         X = self.data[int(self.f0 % self.max)]
         if not self.initialized:
             ax.set_ylabel(f"Pred {str(float(self.pred))}")
-            for axis in ['top','bottom','left','right']:
+            for axis in ['top', 'bottom', 'left', 'right']:
                 ax.spines[axis].set_linewidth(2.5)
                 ax.spines[axis].set_color(self.color)
             ax.set_yticks([])
@@ -836,7 +861,7 @@ def plot_attacked_prob(
         for i in range(len(redraw_fn.sub)):
             redraw_fn.sub[i].draw(f, axes[i])
 
-    if data == None:
+    if data is None:
         data = []
         for i in range(N_rows * N_cols):
             image = torch.round(reparameterization_bernoulli(P_adv, temperature=prob_net.temperature))
@@ -846,7 +871,7 @@ def plot_attacked_prob(
             assert ((store_image == 0.0) | (store_image == 1.0)).all()
             data.append((store_image.cpu(), pred))
 
-    redraw_fn.sub = [Redraw(el[0],el[1],target) for el in data]
+    redraw_fn.sub = [Redraw(el[0], el[1], target) for el in data]
 
     videofig(
         num_frames=100,
@@ -856,6 +881,7 @@ def plot_attacked_prob(
         block=block,
         figname=figname)
 
+
 def get_ann_arch():
     """
     Generate ann architecture and return
@@ -864,13 +890,13 @@ def get_ann_arch():
     ann = nn.Sequential(
         nn.Conv2d(2, 20, 5, 1, bias=False),
         nn.ReLU(),
-        nn.AvgPool2d(2,2),
+        nn.AvgPool2d(2, 2),
         nn.Conv2d(20, 32, 5, 1, bias=False),
         nn.ReLU(),
-        nn.AvgPool2d(2,2),
+        nn.AvgPool2d(2, 2),
         nn.Conv2d(32, 128, 3, 1, bias=False),
         nn.ReLU(),
-        nn.AvgPool2d(2,2),
+        nn.AvgPool2d(2, 2),
         nn.Flatten(),
         nn.Linear(128, 500, bias=False),
         nn.ReLU(),
@@ -878,6 +904,7 @@ def get_ann_arch():
     )
     ann = ann.to(device)
     return ann
+
 
 def get_mnist_ann_arch():
     """
@@ -889,23 +916,24 @@ def get_mnist_ann_arch():
         nn.ReLU(),
         nn.Conv2d(32, 64, 3, 1),
         nn.ReLU(),
-        nn.MaxPool2d(2,2),
+        nn.MaxPool2d(2, 2),
         nn.Dropout2d(p=0.25),
         nn.Flatten(),
         nn.Dropout(p=0.5),
-        nn.Linear(9216,128),
+        nn.Linear(9216, 128),
         nn.Linear(128, 10)
     )
     ann = ann.to(device)
     return ann
 
-def load_ann(path, ann = None):
+
+def load_ann(path, ann=None):
     """
     Tries to load ann from path, returns None if not successful
     """
     if isinstance(path, str):
         path = pathlib.Path(path)
-    if ann == None:
+    if ann is None:
         ann = get_ann_arch()
     if not path.exists():
         return None
@@ -914,13 +942,14 @@ def load_ann(path, ann = None):
         ann.eval()
         return ann
 
-def get_det_net(ann = None):
+
+def get_det_net(ann=None):
     """
     Transform the continuous network into spiking network using the sinabs framework.
     Generate the ann if the passed ann is None.
-    Normalize the weights and increase initial weights by multiplicative factor. 
+    Normalize the weights and increase initial weights by multiplicative factor.
     """
-    if ann == None:
+    if ann is None:
         ann = train_ann_mnist()
 
     # - Create data loader
@@ -936,17 +965,18 @@ def get_det_net(ann = None):
     normalize_weights(
         ann.cpu(),
         torch.tensor(data).float(),
-        output_layers=['1','4','7','11'],
-        param_layers=['0','3','6','10','12'])
+        output_layers=['1', '4', '7', '11'],
+        param_layers=['0', '3', '6', '10', '12'])
 
     # - Create spiking model
     model = from_model(ann, input_shape=(2, 34, 34), add_spiking_output=True)
-    
+
     # - Increase 1st layer weights by magnitude
     model.spiking_model[0].weight.data *= 7
     return model
 
-def get_prob_net(ann = None):
+
+def get_prob_net(ann=None):
     """
     Create probabilistic network from spiking network and return.
     """
@@ -955,20 +985,22 @@ def get_prob_net(ann = None):
 
     # - Create probabilistic network
     prob_net = ProbNetwork(
-            ann,
-            model.spiking_model,
-            input_shape=(2, 34, 34)
-        )
+        ann,
+        model.spiking_model,
+        input_shape=(2, 34, 34)
+    )
     return prob_net
 
-def get_prob_net_continuous(ann = None):
+
+def get_prob_net_continuous(ann=None):
     """
     Create probabilistic network from standard torch model.
     """
-    if ann == None:
+    if ann is None:
         ann = train_ann_binary_mnist()
     prob_net = ProbNetworkContinuous(ann)
     return prob_net
+
 
 def train_ann_mnist():
     """
@@ -984,14 +1016,14 @@ def train_ann_mnist():
     path = nmnist_dataloader.path / "N-MNIST/mnist_ann.pt"
 
     ann = load_ann(path)
-    if ann == None:
+    if ann is None:
         ann = get_ann_arch()
         data_loader_train = nmnist_dataloader.get_data_loader(dset="train", mode="ann", shuffle=True, num_workers=4, batch_size=64)
         optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
         n_epochs = 1
         for n in range(n_epochs):
             for data, target in data_loader_train:
-                data, target = data.to(device), target.to(device) # GPU
+                data, target = data.to(device), target.to(device)  # GPU
                 output = ann(data)
                 optim.zero_grad()
                 loss = F.cross_entropy(output, target)
@@ -1002,6 +1034,7 @@ def train_ann_mnist():
         torch.save(ann.state_dict(), path)
     ann.eval()
     return ann
+
 
 def train_ann_binary_mnist():
     """
@@ -1016,9 +1049,9 @@ def train_ann_binary_mnist():
     # - Setup path
     path = bmnist_dataloader.path / "B-MNIST/mnist_ann.pt"
 
-    ann = load_ann(path, ann = get_mnist_ann_arch())
+    ann = load_ann(path, ann=get_mnist_ann_arch())
 
-    if ann == None:
+    if ann is None:
         ann = get_mnist_ann_arch()
         data_loader_train = bmnist_dataloader.get_data_loader(dset="train", shuffle=True, num_workers=4, batch_size=64)
         optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
@@ -1026,7 +1059,7 @@ def train_ann_binary_mnist():
         for n in range(n_epochs):
             print(f"Epoch {n} / {n_epochs}")
             for data, target in data_loader_train:
-                data, target = data.to(device), target.to(device) # GPU
+                data, target = data.to(device), target.to(device)  # GPU
                 output = ann(data)
                 optim.zero_grad()
                 loss = F.cross_entropy(output, target)
@@ -1035,10 +1068,11 @@ def train_ann_binary_mnist():
                 pred = output.argmax(dim=1, keepdim=True)
                 correct = pred.eq(target.view_as(pred)).sum().item()
         torch.save(ann.state_dict(), path)
-    ann.eval() # - Set into eval mode for dropout layers
+    ann.eval()  # - Set into eval mode for dropout layers
     return ann
 
-@cachable(dependencies= ["model:{architecture}_session_id","eps","eps_iter","N_pgd","N_MC","norm","rand_minmax","limit","N_samples"])
+
+@cachable(dependencies=["model:{architecture}_session_id", "eps", "eps_iter", "N_pgd", "N_MC", "norm", "rand_minmax", "limit", "N_samples"])
 def get_prob_attack_robustness(
     model,
     eps,
@@ -1084,6 +1118,7 @@ def get_prob_attack_robustness(
 
     return np.mean(np.array(defense_probabilities))
 
+
 def get_data_loader_from_model(model, batch_size=1, max_size=10000):
     if model['architecture'] == "NMNIST":
         if batch_size == -1:
@@ -1100,10 +1135,11 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
                 batch_size = max_size
         data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=batch_size)
     else:
-        assert model['architecture'] in ["NMNIST","BMNIST"], "No other architecture added so far"
+        assert model['architecture'] in ["NMNIST", "BMNIST"], "No other architecture added so far"
     return data_loader
 
-@cachable(dependencies= ["model:{architecture}_session_id","N_pgd","N_MC","eps","eps_iter","rand_minmax","norm","k","limit"])
+
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "k", "limit"])
 def prob_boost_attack_on_test_set(
     model,
     N_pgd,
@@ -1131,7 +1167,8 @@ def prob_boost_attack_on_test_set(
         return d
     return evaluate_on_test_set(model, limit, attack_fn)
 
-@cachable(dependencies= ["model:{architecture}_session_id","N_pgd","N_MC","eps","eps_iter","rand_minmax","norm","hamming_distance_eps","early_stopping","limit"])
+
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "hamming_distance_eps", "early_stopping", "limit"])
 def prob_attack_on_test_set(
     model,
     N_pgd,
@@ -1161,9 +1198,10 @@ def prob_attack_on_test_set(
             verbose=verbose)
         return d
 
-    return evaluate_on_test_set(model, limit, attack_fn) 
+    return evaluate_on_test_set(model, limit, attack_fn)
 
-@cachable(dependencies= ["model:{architecture}_session_id","hamming_distance_eps","thresh","early_stopping","limit"])
+
+@cachable(dependencies=["model:{architecture}_session_id", "hamming_distance_eps", "thresh", "early_stopping", "limit"])
 def scar_attack_on_test_set(
     model,
     hamming_distance_eps,
@@ -1185,6 +1223,7 @@ def scar_attack_on_test_set(
 
     return evaluate_on_test_set(model, limit, attack_fn)
 
+
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
@@ -1199,8 +1238,8 @@ def evaluate_on_test_set(model, limit, attack_fn):
     ret["predicted"] = []
     ret["predicted_attacked"] = []
 
-    def f(X_batched,targets,attack_fn,idx):
-        ret_f = {"success":[], "elapsed_time":[], "L0":[], "n_queries":[], "targets":[], "predicted":[], "predicted_attacked":[]}
+    def f(X_batched, targets, attack_fn, idx):
+        ret_f = {"success": [], "elapsed_time": [], "L0": [], "n_queries": [], "targets": [], "predicted": [], "predicted_attacked": []}
         for i in range(X_batched.shape[0]):
             print(f"{i}/{X_batched.shape[0]}")
             X0 = X_batched[i]
@@ -1211,9 +1250,9 @@ def evaluate_on_test_set(model, limit, attack_fn):
             for key in d:
                 ret_f[key].append(d[key])
             ret_f["targets"].append(target)
-        return ret_f,idx
+        return ret_f, idx
 
-    for batch,target in data_loader:
+    for batch, target in data_loader:
         if N_count >= limit:
             break
         X = batch.to(device)
@@ -1223,15 +1262,15 @@ def evaluate_on_test_set(model, limit, attack_fn):
 
         with ThreadPoolExecutor(max_workers=None) as executor:
             parallel_results = []
-            futures = [executor.submit(f,el,t,attack_fn,idx) for idx,(el,t) in enumerate(zip(X_list,target_list))]
+            futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):
                 result = future.result()
                 parallel_results.append(result)
             # - Sort the results
             parallel_results = sorted(parallel_results, key=lambda k: k[1])
 
-            for ret_f,idx in parallel_results:
+            for ret_f, idx in parallel_results:
                 for key in ret_f:
                     ret[key].append(ret_f[key])
-    
+
     return ret
