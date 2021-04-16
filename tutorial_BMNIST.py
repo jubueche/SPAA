@@ -34,27 +34,29 @@ data_loader_test = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, 
 for idx, (data,target) in enumerate(data_loader_test):
     X0 = data.to(device)
 
-    if idx < 5:
+    if idx < 7:
         continue
 
     # if not (target == 0):
     #     continue
     
-    X_adv_sparse_fool, _, _, model_pred_sparsefool, _ = sparsefool(
+    return_dict_sparse_fool = sparsefool(
         x_0=X0,
         net=ann_binary_mnist,
         lambda_=0.5,
         device=device,
         round_fn=round_fn,
-        probabilistic=False
+        probabilistic=False,
+        early_stopping=True,
     )
 
-    X_adv_sparse_fool_prob, _, _, model_pred_sparsefool_prob, _ = sparsefool(
+    return_dict_sparse_fool_prob = sparsefool(
         x_0=X0,
         net=prob_net,
         lambda_=0.5,
         device=device,
         probabilistic=True,
+        early_stopping=True,
         rand_minmax=rand_minmax_deepfool
     )
 
@@ -110,6 +112,10 @@ for idx, (data,target) in enumerate(data_loader_test):
         verbose=verbose
     )
 
+    X_adv_sparse_fool = return_dict_sparse_fool["X_adv"].to(device)
+    num_flipped_sparse_fool = return_dict_sparse_fool["L0"]
+    X_adv_sparse_fool_prob = return_dict_sparse_fool_prob["X_adv"].to(device)
+    num_flipped_sparse_fool_prob = return_dict_sparse_fool_prob["L0"]
     X_adv_non_prob = return_dict_non_prob["X_adv"].to(device)
     num_flipped_non_prob = return_dict_non_prob["L0"]
     X_adv_scar = return_dict_scar["X_adv"].to(device)
@@ -126,8 +132,8 @@ for idx, (data,target) in enumerate(data_loader_test):
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
-    print(f"Model: {int(model_pred)} SparseFool: {int(model_pred_sparsefool)}")
-    print(f"Model: {int(model_pred)} SparseFool Prob: {int(model_pred_sparsefool_prob)}")
+    print(f"Model: {int(model_pred)} SparseFool: {int(model_pred_sparsefool)} with L_0 = {num_flipped_sparse_fool}")
+    print(f"Model: {int(model_pred)} SparseFool Prob: {int(model_pred_sparsefool_prob)} with L_0 = {num_flipped_sparse_fool_prob}")
     print(f"Model: {int(model_pred)} Non_prob: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
     print(f"Model: {int(model_pred)} Scar: {int(model_pred_scar)} with L_0 = {num_flipped_scar}")
     print(f"Model: {int(model_pred)} Boosted Prob.: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
