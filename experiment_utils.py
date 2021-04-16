@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
+from torch.autograd.gradcheck import zero_gradients
 import numpy as np
 import pathlib
 from dataloader_NMNIST import NMNISTDataLoader
@@ -19,6 +21,7 @@ import time
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from torch.multiprocessing import Pool
+from copy import deepcopy
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -292,6 +295,99 @@ def non_prob_pgd(
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
+
+def deepfool(
+    im,
+    net,
+    lambda_fac=3.0,
+    overshoot=0.02,
+    max_iter=50,
+    device="cuda",
+    round_fn=torch.round,
+    probabilistic=False,
+    rand_minmax=0.1,
+):
+    assert ((im == 0.0) | (im == 1.0)).all(), "Input must either 0 or 1"
+    X0 = deepcopy(im)
+
+    if probabilistic:
+        eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
+        X0 = X0 * (1 - eta) + (1 - X0) * eta
+        X0 = torch.clamp(X0, 0.0, 1.0)
+
+    f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy().flatten()
+    num_classes = len(f_image)
+    input_shape = X0.size()
+
+    I = (np.array(f_image)).flatten().argsort()[::-1]
+    I = I[0:num_classes]
+    label = I[0]
+
+    X_adv = deepcopy(X0)
+    r_tot = torch.zeros(input_shape).to(device)
+
+    k_i = label
+    loop_i = 0
+
+    while k_i == label and loop_i < max_iter:
+
+        if not probabilistic:
+            x = Variable(round_fn(X_adv), requires_grad=True)
+        else:
+            x = Variable(X_adv, requires_grad=True)
+        
+        fs = net.forward(x)
+
+        pert = torch.Tensor([np.inf])[0].to(device)
+        w = torch.zeros(input_shape).to(device)
+
+        fs[0, I[0]].backward(retain_graph=True)
+        grad_orig = deepcopy(x.grad.data)
+
+        for k in range(1, num_classes):
+            zero_gradients(x)
+
+            fs[0, I[k]].backward(retain_graph=True)
+            cur_grad = deepcopy(x.grad.data)
+
+            w_k = cur_grad - grad_orig
+            f_k = (fs[0, I[k]] - fs[0, I[0]]).data
+
+            pert_k = torch.abs(f_k) / (w_k.norm() + 1e-10)
+
+            if pert_k < pert:
+                pert = pert_k + 0.
+                w = w_k + 0.
+
+        r_i = torch.clamp(pert, min=1e-4) * w / (w.norm() + 1e-10)
+        r_tot = r_tot + r_i
+
+        X_adv = X_adv + r_i
+
+        if not probabilistic: 
+            check_fool = round_fn(X0 + (1 + overshoot) * r_tot)
+        else:
+            check_fool = X0 + (1 + overshoot) * r_tot
+
+        k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data).item()
+
+        loop_i += 1
+
+    if not probabilistic:
+        x = Variable(round_fn(X_adv), requires_grad=True)
+    else:
+        x = Variable(X_adv, requires_grad=True)
+    fs = net.forward(x)
+    (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
+    grad = deepcopy(x.grad.data)
+    grad = grad / grad.norm()
+
+    r_tot = lambda_fac * r_tot
+    X_adv = X0 + r_tot
+    X_adv = torch.clamp(X_adv, 0.0, 1.0)
+
+    return grad, X_adv
+
 
 def hamming_attack(
     hamming_distance_eps,

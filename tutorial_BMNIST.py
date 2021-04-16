@@ -23,23 +23,46 @@ N_MC = 10
 eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
+rand_minmax_deepfool = 0.05
 norm = 2
 hamming_distance_eps = 400 / 784
 verbose = False
+round_fn = torch.round
 
 # - Test data set
 data_loader_test = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=1)
 for idx, (data,target) in enumerate(data_loader_test):
     X0 = data.to(device)
 
-    print(idx)
-
-    if idx < 12:
+    if idx < 5:
         continue
 
     # if not (target == 0):
     #     continue
     
+    _, X_adv_deepfool_prob = deepfool(
+        im=X0,
+        net=prob_net,
+        lambda_fac=2.0,
+        overshoot=0.02,
+        max_iter=50,
+        device=device,
+        round_fn=round_fn,
+        probabilistic=True,
+        rand_minmax=rand_minmax_deepfool
+    )
+
+    _, X_adv_deepfool = deepfool(
+        im=X0,
+        net=ann_binary_mnist,
+        lambda_fac=2.0,
+        overshoot=0.02,
+        max_iter=50,
+        device=device,
+        round_fn=round_fn,
+        probabilistic=False
+    )
+
     return_dict_non_prob = non_prob_pgd(
         hamming_distance_eps=hamming_distance_eps,
         net=ann_binary_mnist,
@@ -101,11 +124,15 @@ for idx, (data,target) in enumerate(data_loader_test):
     X_adv = return_dict["X_adv"].to(device)
     num_flipped = return_dict["L0"]
 
-    model_pred_non_prob = get_prediction(ann_binary_mnist, X_adv_non_prob, "non_prob")
     model_pred = get_prediction(ann_binary_mnist, X0, "non_prob")
+    model_pred_deepfool_l2 = get_prediction(ann_binary_mnist, round_fn(X_adv_deepfool), "non_prob")
+    model_pred_deepfool_l2_prob = get_prediction(prob_net, X_adv_deepfool_prob, "prob")
+    model_pred_non_prob = get_prediction(ann_binary_mnist, X_adv_non_prob, "non_prob")
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
+    print(f"Model: {int(model_pred)} DeepFool: {int(model_pred_deepfool_l2)}")
+    print(f"Model: {int(model_pred)} DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
     print(f"Model: {int(model_pred)} Non_prob: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
     print(f"Model: {int(model_pred)} Scar: {int(model_pred_scar)} with L_0 = {num_flipped_scar}")
     print(f"Model: {int(model_pred)} Boosted Prob.: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
@@ -113,14 +140,19 @@ for idx, (data,target) in enumerate(data_loader_test):
 
     break
 
-plt.subplot(151)
+plt.figure(figsize=(20, 7))
+plt.subplot(181)
 plt.imshow(torch.squeeze(X0.cpu())); plt.title("Orig.")
-plt.subplot(152)
+plt.subplot(182)
 plt.imshow(torch.squeeze(X_adv.cpu())); plt.title(f"Adv. Hamming Pred.: {int(model_pred_prob)}")
-plt.subplot(153)
+plt.subplot(183)
 plt.imshow(torch.squeeze(X_adv_boosted.cpu())); plt.title(f"Adv. Boosted Hamming Pred.: {int(model_pred_prob_boosted)}")
-plt.subplot(154)
+plt.subplot(184)
 plt.imshow(torch.squeeze(X_adv_scar.cpu())); plt.title(f"Adv. Scar.: {int(model_pred_scar)}")
-plt.subplot(155)
+plt.subplot(185)
 plt.imshow(torch.squeeze(X_adv_non_prob.cpu())); plt.title(f"Adv. non prob.: {int(model_pred_non_prob)}")
+plt.subplot(186)
+plt.imshow(torch.squeeze(round_fn(X_adv_deepfool).cpu())); plt.title(f"Adv. DeepFool: {int(model_pred_deepfool_l2)}")
+plt.subplot(187)
+plt.imshow(torch.squeeze(torch.round(reparameterization_bernoulli(X_adv_deepfool_prob, temperature=0.01)).cpu())); plt.title(f"Adv. DeepFool Prob: {int(model_pred_deepfool_l2_prob)}")
 plt.show()

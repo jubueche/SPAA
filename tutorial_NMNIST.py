@@ -19,7 +19,7 @@ data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="s
 
 for idx, (data, target) in enumerate(data_loader_test_spikes):
     P0 = data
-    if target == 0:
+    if target == 1:
         break
 
 P0 = P0[0].to(device)
