@@ -66,6 +66,26 @@ class ProbNetworkContinuous(torch.nn.Module):
         return self.model.forward(X)
 
 
+class SummedSNN(SinabsNetwork):
+
+    def __init__(
+        self,
+        model,
+        spk_model,
+        input_shape,
+        n_classes,
+        synops=False
+    ):
+        self.n_classes = n_classes
+        super().__init__(model, spk_model, input_shape, synops)
+    
+    def forward(self, X):
+        assert ((X == 0.0) | (X == 1.0)).all(), "Non binary input"
+        spike_out = super().forward(X)
+        X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
+        return X
+
+
 def get_ann_arch():
     """
     Generate ann architecture and return
@@ -126,7 +146,19 @@ def load_ann(path, ann=None):
         ann.eval()
         return ann
 
+def get_summed_network(ann, n_classes):
+    # - Get the deterministic spiking model
+    model = get_det_net(ann)
 
+    # - Create summed network
+    s_net = SummedSNN(
+        ann,
+        model.spiking_model,
+        input_shape=(2, 34, 34),
+        n_classes=n_classes
+    )
+    return s_net
+    
 def get_det_net(ann=None):
     """
     Transform the continuous network into spiking network using the sinabs framework.

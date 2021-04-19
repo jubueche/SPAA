@@ -20,7 +20,7 @@ def deepfool(
     rand_minmax=0.1,
 ):
     n_queries = 0
-    X0 = deepcopy(im)
+    X0 = torch.round(deepcopy(im))
 
     if probabilistic:
         eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
@@ -99,7 +99,7 @@ def deepfool(
 
     r_tot = lambda_fac * r_tot
     X_adv = X0 + r_tot
-    X_adv = torch.clamp(X_adv, 0.0, 1.0)
+    # X_adv = torch.clamp(X_adv, 0.0, 1.0)
 
     return grad, X_adv, n_queries
 
@@ -134,6 +134,9 @@ def sparsefool(
     loops = 0
 
     while fool_label == pred_label and loops < max_iter:
+
+        if verbose:
+            print(f"{loops}/{max_iter}")
 
         normal, x_adv, n_queries_deepfool = deepfool(
             im=x_i,
