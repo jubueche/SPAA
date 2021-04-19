@@ -1,7 +1,7 @@
 from dataloader_NMNIST import NMNISTDataLoader
 import torch
 from networks import train_ann_mnist, get_prob_net
-from attacks import boosted_hamming_attack, prob_attack_pgd
+from attacks import prob_fool, prob_attack_pgd
 from utils import get_prediction, plot_attacked_prob
 
 # - Set device
@@ -36,11 +36,11 @@ eps = 1.5
 eps_iter = 0.3
 rand_minmax = 0.01
 norm = 2
-hamming_distance_eps = 0.0025
+max_hamming_distance = 40
 k = 50
 
-return_dict = boosted_hamming_attack(
-    k=k,
+return_dict = prob_fool(
+    max_hamming_distance=max_hamming_distance,
     prob_net=prob_net,
     P0=P0,
     eps=eps,
@@ -49,7 +49,9 @@ return_dict = boosted_hamming_attack(
     N_MC=N_MC,
     norm=norm,
     rand_minmax=rand_minmax,
-    verbose=True,
+    boost=True,
+    early_stopping=True,
+    verbose=True
 )
 
 X_adv = return_dict["X_adv"]

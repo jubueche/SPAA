@@ -1,9 +1,58 @@
 from videofig import videofig
 import torch
+import torch.nn.functional as F
+import numpy as np
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+def get_index_list(dims):
+    if len(dims) == 2:
+        return [(i, j) for i in range(dims[0]) for j in range(dims[1])]
+    else:
+        return [((i,) + el) for i in range(dims[0]) for el in get_index_list(dims[1:])]
+
+def get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping):
+    assert len(flip_indices) <= max_hamming_distance, "You cannot pass more than max_hamming_distance many indices to this method"
+    n_queries = 0
+    index_dict = {}
+    for i in flip_indices:
+        index_dict[i] = 0.0  # - Dummy value
+    for idx in range(len(flip_indices)):
+        if early_stopping:
+            n_queries += 1
+        if early_stopping and (not get_prediction(net, X_adv, mode="non_prob") == y):
+            if verbose:
+                print(f"Used Hamming distance {idx+1}")
+            break
+        if boost:
+            n_queries += len(list(index_dict.keys()))
+        flip_index = get_next_index(X_adv, index_dict, net, y, boost, verbose)
+        X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
+    return X_adv, n_queries, idx+1
+
+def confidence(X, net, y):
+    return F.softmax(get_prediction_raw(net, X, mode="non_prob"), dim=0)[y]
+
+def get_next_index(X_adv, index_dict, net, y, boost, verbose):
+    if not boost:
+        best_point = list(index_dict.keys())[0]  # - Just return the first key/index
+    else:
+        F_X_adv = confidence(X_adv, net, y)
+        if verbose:
+            print(f"Confidence: {F_X_adv}")
+        X_tmp = X_adv.clone()
+        best_delta_conf = -np.inf
+        best_point = None
+        for p in index_dict:
+            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
+            d_conf = F_X_adv - confidence(X_tmp, net, y)
+            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip back
+            if d_conf >= best_delta_conf:
+                best_delta_conf = d_conf
+                best_point = p
+    index_dict.pop(best_point, None)
+    return best_point
 
 def reparameterization_bernoulli(
     P,

@@ -1,3 +1,3 @@
-from Experiments import example_experiment, bmnist_experiment
+from Experiments import bmnist_experiment
 
 bmnist_experiment.bmnist_experiment.visualize()

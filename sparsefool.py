@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import time
 
-from utils import get_prediction, reparameterization_bernoulli
+from utils import get_prediction, reparameterization_bernoulli, get_X_adv_post_attack, get_index_list
 
 
 def deepfool(
@@ -107,6 +107,7 @@ def deepfool(
 def sparsefool(
     x_0,
     net,
+    max_hamming_distance,
     lb=0.0,
     ub=1.0,
     lambda_=2.,
@@ -120,6 +121,7 @@ def sparsefool(
     rand_minmax=0.1,
     early_stopping=False,
     boost=False,
+    verbose=False,
 ):
     t0 = time.time()
     n_queries = 1
@@ -150,44 +152,42 @@ def sparsefool(
         fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
         fool_im = clip_image_values(fool_im, lb, ub)
         if not probabilistic:
-            fool_im = round_fn(fool_im)
+            fool_im_tmp = round_fn(fool_im)
         else:
-            fool_im = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
+            fool_im_tmp = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
 
-        fool_label = get_prediction(net, fool_im, mode="non_prob")
+        fool_label = get_prediction(net, fool_im_tmp, mode="non_prob")
 
         n_queries += n_queries_deepfool + 1
         loops += 1
 
-    assert ((fool_im == 0.0) | (fool_im == 1.0)).all(), "Fool image must be all 0 or 1"
+    # - Get the indices that are most likely to be flipped
     deviations = torch.abs(fool_im - x_0).cpu().numpy()
-    if early_stopping:
-        where_flipped = np.where(deviations == 1.0)
-        X_adv = deepcopy(x_0)
-        for idx in range(len(where_flipped[0])):
-            n_queries += 1
-            if pred_label != get_prediction(net, X_adv, mode="non_prob"):
-                break
-            else:
-                flip_index = tuple([el[idx] for el in where_flipped])
-                X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
-        L0 = idx
-    else:
-        L0 = int(np.sum(deviations))
-        X_adv = fool_im
+    tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+    tupled.sort(key=lambda a : a[0], reverse=True)
+    flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+
+    X_adv, n_queries_extra, L0 = get_X_adv_post_attack(
+        flip_indices=flip_indices,
+        max_hamming_distance=max_hamming_distance,
+        boost=boost,
+        verbose=verbose,
+        X_adv=deepcopy(x_0),
+        y=pred_label,
+        net=net,
+        early_stopping=early_stopping
+    )
 
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) else 0
-    return_dict["elapsed_time"] = t1 - t0
+    return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = pred_label
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
-
-    return fool_im, r, pred_label, fool_label, loops
 
 
 def linear_solver(x_0, normal, boundary_point, lb, ub):

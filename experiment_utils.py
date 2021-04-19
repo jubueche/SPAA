@@ -1,63 +1,14 @@
 import torch
-import numpy as np
 from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from attacks import prob_attack_pgd, boosted_hamming_attack, hamming_attack, scar_attack
-from utils import get_prediction
+from attacks import non_prob_fool, prob_fool, SCAR
+from sparsefool import sparsefool
+import numpy as np
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-
-@cachable(dependencies=["model:{architecture}_session_id", "eps", "eps_iter", "N_pgd", "N_MC", "norm", "rand_minmax", "limit", "N_samples"])
-def get_prob_attack_robustness(
-    model,
-    eps,
-    eps_iter,
-    N_pgd,
-    N_MC,
-    norm,
-    rand_minmax,
-    limit,
-    N_samples
-):
-    if model['architecture'] == "NMNIST":
-        nmnist_dataloader = NMNISTDataLoader()
-        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
-    else:
-        assert model['architecture'] in ["NMNIST"], "No other architecture added so far"
-
-    defense_probabilities = []
-    for idx, (batch, target) in enumerate(data_loader):
-        if idx == limit:
-            break
-
-        batch = torch.clamp(batch, 0.0, 1.0)
-
-        P_adv = prob_attack_pgd(
-            model['prob_net'],
-            batch[0],
-            eps,
-            eps_iter,
-            N_pgd,
-            N_MC,
-            norm,
-            rand_minmax
-        )
-
-        correct = []
-        for _ in range(N_samples):
-            model_pred = get_prediction(model['prob_net'], P_adv, "prob")
-            if model_pred == target:
-                correct.append(1.0)
-
-        defense_probabilities.append(float(sum(correct) / N_samples))
-
-    return np.mean(np.array(defense_probabilities))
-
 
 def get_data_loader_from_model(model, batch_size=1, max_size=10000):
     if model['architecture'] == "NMNIST":
@@ -79,8 +30,8 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
     return data_loader
 
 
-@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "k", "limit"])
-def prob_boost_attack_on_test_set(
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
+def prob_fool_on_test_set(
     model,
     N_pgd,
     N_MC,
@@ -88,44 +39,16 @@ def prob_boost_attack_on_test_set(
     eps_iter,
     rand_minmax,
     norm,
-    k,
-    verbose,
-    limit
-):
-    def attack_fn(X0):
-        d = boosted_hamming_attack(
-            k=k,
-            prob_net=model["prob_net"],
-            P0=X0,
-            eps=eps,
-            eps_iter=eps_iter,
-            N_pgd=N_pgd,
-            N_MC=N_MC,
-            norm=norm,
-            rand_minmax=rand_minmax,
-            verbose=verbose)
-        return d
-    return evaluate_on_test_set(model, limit, attack_fn)
-
-
-@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "hamming_distance_eps", "early_stopping", "limit"])
-def prob_attack_on_test_set(
-    model,
-    N_pgd,
-    N_MC,
-    eps,
-    eps_iter,
-    rand_minmax,
-    norm,
-    hamming_distance_eps,
+    max_hamming_distance,
+    boost,
     early_stopping,
     verbose,
     limit
 ):
 
     def attack_fn(X0):
-        d = hamming_attack(
-            hamming_distance_eps=hamming_distance_eps,
+        d = prob_fool(
+            max_hamming_distance=max_hamming_distance,
             prob_net=model["prob_net"],
             P0=X0,
             eps=eps,
@@ -134,6 +57,128 @@ def prob_attack_on_test_set(
             N_MC=N_MC,
             norm=norm,
             rand_minmax=rand_minmax,
+            boost=boost,
+            early_stopping=early_stopping,
+            verbose=verbose)
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+def get_round_fn(round_fn):
+    assert round_fn in ["round", "stoch_round"], "Unknown rounding function"
+    if round_fn == "round":
+        round_fn_evaluated = torch.round
+    else:
+        round_fn_evaluated = lambda x : (torch.rand(size=x.shape) < x).float()
+    return round_fn_evaluated
+
+
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","rand_minmax","early_stopping","boost","limit"])
+def prob_sparse_fool_on_test_set(
+    model,
+    max_hamming_distance,
+    lambda_,
+    max_iter,
+    epsilon,
+    overshoot,
+    max_iter_deep_fool,
+    rand_minmax,
+    early_stopping,
+    boost,
+    verbose,
+    limit
+):
+    def attack_fn(X0):
+        d = sparsefool(
+            x_0=X0,
+            net=model["prob_net"],
+            max_hamming_distance=max_hamming_distance,
+            lambda_=lambda_,
+            max_iter=max_iter,
+            epsilon=epsilon,
+            overshoot=overshoot,
+            max_iter_deep_fool=max_iter_deep_fool,
+            device=device,
+            round_fn=None,
+            probabilistic=True,
+            rand_minmax=rand_minmax,
+            early_stopping=early_stopping,
+            boost=boost,
+            verbose=verbose
+        )
+        return d
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","round_fn","early_stopping","boost","limit"])
+def sparse_fool_on_test_set(
+    model,
+    max_hamming_distance,
+    lambda_,
+    max_iter,
+    epsilon,
+    overshoot,
+    max_iter_deep_fool,
+    round_fn,
+    early_stopping,
+    boost,
+    verbose,
+    limit
+):
+
+    round_fn_evaluated = get_round_fn(round_fn)
+
+    def attack_fn(X0):
+        d = sparsefool(
+            x_0=X0,
+            net=model["ann"],
+            max_hamming_distance=max_hamming_distance,
+            lambda_=lambda_,
+            max_iter=max_iter,
+            epsilon=epsilon,
+            overshoot=overshoot,
+            max_iter_deep_fool=max_iter_deep_fool,
+            device=device,
+            round_fn=round_fn_evaluated,
+            probabilistic=False,
+            rand_minmax=None,
+            early_stopping=early_stopping,
+            boost=boost,
+            verbose=verbose
+        )
+        return d
+    return evaluate_on_test_set(model, limit, attack_fn)
+    
+
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "round_fn", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
+def non_prob_fool_on_test_set(
+    model,
+    N_pgd,
+    round_fn,
+    eps,
+    eps_iter,
+    rand_minmax,
+    norm,
+    max_hamming_distance,
+    boost,
+    early_stopping,
+    verbose,
+    limit
+):
+
+    round_fn_evaluated = get_round_fn(round_fn)
+
+    def attack_fn(X0):
+        d = non_prob_fool(
+            max_hamming_distance=max_hamming_distance,
+            net=model["ann"],
+            X0=X0,
+            round_fn=round_fn_evaluated,
+            eps=eps,
+            eps_iter=eps_iter,
+            N_pgd=N_pgd,
+            norm=norm,
+            rand_minmax=rand_minmax,
+            boost=boost,
             early_stopping=early_stopping,
             verbose=verbose)
         return d
@@ -141,10 +186,10 @@ def prob_attack_on_test_set(
     return evaluate_on_test_set(model, limit, attack_fn)
 
 
-@cachable(dependencies=["model:{architecture}_session_id", "hamming_distance_eps", "thresh", "early_stopping", "limit"])
+@cachable(dependencies=["model:{architecture}_session_id", "max_hamming_distance", "thresh", "early_stopping", "limit"])
 def scar_attack_on_test_set(
     model,
-    hamming_distance_eps,
+    max_hamming_distance,
     thresh,
     early_stopping,
     verbose,
@@ -152,8 +197,8 @@ def scar_attack_on_test_set(
 ):
 
     def attack_fn(X0):
-        d = scar_attack(
-            hamming_distance_eps=hamming_distance_eps,
+        d = SCAR(
+            max_hamming_distance=max_hamming_distance,
             net=model["ann"],
             X0=X0,
             thresh=thresh,
@@ -167,7 +212,7 @@ def scar_attack_on_test_set(
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
-    split_size = 10
+    split_size = 100
 
     ret = {}
     ret["success"] = []
@@ -212,5 +257,9 @@ def evaluate_on_test_set(model, limit, attack_fn):
             for ret_f, idx in parallel_results:
                 for key in ret_f:
                     ret[key].append(ret_f[key])
+
+    # - Unravel
+    for key in ret:
+        ret[key] = np.array([a for b in ret[key] for a in b])
 
     return ret

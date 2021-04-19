@@ -6,7 +6,7 @@ from cleverhans.torch.utils import optimize_linear
 from cleverhans_additions import _fast_gradient_method_grad
 import torch.nn.functional as F
 import torch
-from utils import get_prediction, get_prediction_raw
+from utils import get_prediction, get_prediction_raw, get_X_adv_post_attack, confidence, get_next_index, get_index_list
 import numpy as np
 import random
 
@@ -106,8 +106,8 @@ def hamming_attack_get_indices(
     return flip_indices
 
 
-def non_prob_pgd(
-    hamming_distance_eps,
+def non_prob_fool(
+    max_hamming_distance,
     net,
     X0,
     round_fn,
@@ -133,12 +133,10 @@ def non_prob_pgd(
     if norm == "np.inf":
         norm = np.inf
     assert norm in [np.inf, 2], "Norm not supported"
-    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
     assert eps > eps_iter, "Eps must be bigger than eps_iter"
     assert eps >= rand_minmax, "rand_minmax should be smaller than or equal to eps"
     assert ((X0 == 0.0) | (X0 == 1.0)).all(), "X0 must be 0 or 1"
     t0 = time.time()
-    hamming_distance = int(np.prod(X0.shape) * hamming_distance_eps)
     X_adv = X0.clone()
 
     y = get_prediction(net, X0, mode="non_prob")
@@ -162,65 +160,25 @@ def non_prob_pgd(
     deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
     tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
     tupled.sort(key=lambda a : a[0], reverse=True)
-    flip_indices = list(map(lambda a : a[1:], tupled))
+    flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
     n_queries = 2 + N_pgd
 
-    def confidence(X):
-        return F.softmax(get_prediction_raw(net, X, mode="non_prob"), dim=0)[y]
-
-    def get_next_index(X_adv, index_dict):
-        if not boost:
-            best_point = list(index_dict.keys())[0]  # - Just return the first key/index
-        else:
-            F_X_adv = confidence(X_adv)
-            if verbose:
-                print(f"Confidence: {F_X_adv}")
-            X_tmp = X_adv.clone()
-            best_delta_conf = -np.inf
-            best_point = None
-            for p in index_dict:
-                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
-                d_conf = F_X_adv - confidence(X_tmp)
-                X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip back
-                if d_conf >= best_delta_conf:
-                    best_delta_conf = d_conf
-                    best_point = p
-        index_dict.pop(best_point, None)
-        return best_point
-
-    index_dict = {}
-    for i in flip_indices:
-        index_dict[i] = 0.0  # - Dummy value
-    for idx in range(len(flip_indices)):
-        if idx == hamming_distance:
-            break
-        if early_stopping:
-            n_queries += 1
-        if early_stopping and (not get_prediction(net, X_adv, mode="non_prob") == y):
-            if verbose:
-                print(f"Used Hamming distance {idx}")
-            break
-        if boost:
-            n_queries += len(list(index_dict.keys()))
-        flip_index = get_next_index(X_adv, index_dict)
-        X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
-    if not early_stopping:
-        assert torch.sum(torch.abs(X0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
+    X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping)
+    n_queries += n_queries_extra
 
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
     return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
-    return_dict["L0"] = idx
+    return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
 
-
-def hamming_attack(
-    hamming_distance_eps,
+def prob_fool(
+    max_hamming_distance,
     prob_net,
     P0,
     eps,
@@ -229,73 +187,15 @@ def hamming_attack(
     N_MC,
     norm,
     rand_minmax,
+    boost=False,
     early_stopping=False,
     verbose=False
 ):
     """
     Perform probabilistic attack. Sort by largest deviation
-    from initial probability (i.e. largest deviation from 0 or 1). Flip "hamming_distance"-many spikes with
-    highest deviation. Return attacking input with hamming_distance.
+    from initial probability (i.e. largest deviation from 0 or 1). Flip "max_hamming_distance"-many spikes with
+    highest deviation. Return attacking input with at most max_hamming_distance.
     """
-    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
-    t0 = time.time()
-    hamming_distance = int(np.prod(P0.shape) * hamming_distance_eps)
-    X_adv = P0.clone()
-    flip_indices = hamming_attack_get_indices(
-        prob_net=prob_net,
-        P0=P0,
-        eps=eps,
-        eps_iter=eps_iter,
-        N_pgd=N_pgd,
-        N_MC=N_MC,
-        norm=norm,
-        rand_minmax=rand_minmax,
-        verbose=verbose
-    )
-    y = get_prediction(prob_net, P0, mode="non_prob")
-    n_queries = 2 + N_pgd * N_MC
-    for idx, flip_index in enumerate(flip_indices):
-        if idx == hamming_distance:
-            break
-        if early_stopping:
-            n_queries += 1
-        if early_stopping and (not get_prediction(prob_net, X_adv, mode="non_prob") == y):
-            if verbose:
-                print(f"Used Hamming distance {idx}")
-            break
-        X_adv[flip_index] = 1.0 if X_adv[flip_index] == 0.0 else 0.0
-    if not early_stopping:
-        assert torch.sum(torch.abs(P0 - X_adv)) == hamming_distance, "Actual hamming distance does not equal the target hamming distance"
-
-    t1 = time.time()
-    return_dict = {}
-    return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
-    return_dict["elapsed_time"] = t1 - t0
-    return_dict["X_adv"] = X_adv
-    return_dict["L0"] = idx
-    return_dict["n_queries"] = n_queries
-    return_dict["predicted"] = y
-    return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
-    return return_dict
-
-
-def boosted_hamming_attack(
-    k,
-    prob_net,
-    P0,
-    eps,
-    eps_iter,
-    N_pgd,
-    N_MC,
-    norm,
-    rand_minmax,
-    verbose=False
-):
-    """
-    Perform standard attack. Pick k most-likely-to-flip indices and perform confidence search.
-    """
-    assert isinstance(k, int), "k must be int"
-    assert k <= np.prod(P0.shape), "k must be smaller than number of pixels"
     t0 = time.time()
     X_adv = P0.clone()
     flip_indices = hamming_attack_get_indices(
@@ -308,51 +208,26 @@ def boosted_hamming_attack(
         norm=norm,
         rand_minmax=rand_minmax,
         verbose=verbose
-    )[:k]
-    flip_indices_d = {}
-    flip_indices.reverse()  # - Reverse so that highest prob. points are at the end. This causes that these points will be chosen if confidence remains 1
-    for p in flip_indices:
-        flip_indices_d[p] = 0.0  # - Turn into dictionary
+    )[:max_hamming_distance]
     y = get_prediction(prob_net, P0, mode="non_prob")
     n_queries = 2 + N_pgd * N_MC
 
-    def confidence(X):
-        return F.softmax(get_prediction_raw(prob_net, X, mode="non_prob"), dim=0)[y]
-    for idx in range(k):
-        n_queries += 2
-        if not get_prediction(prob_net, X_adv, mode="non_prob") == y:
-            break
-        F_X_adv = confidence(X_adv)
-        if verbose:
-            print(f"Confidence: {F_X_adv}")
-        X_tmp = X_adv.clone()
-        best_delta_conf = -np.inf
-        best_point = None
-        for p in flip_indices_d:
-            n_queries += 1
-            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0
-            d_conf = F_X_adv - confidence(X_tmp)
-            X_tmp[p] = 1.0 if X_tmp[p] == 0.0 else 0.0  # - Flip back
-            if d_conf >= best_delta_conf:
-                best_delta_conf = d_conf
-                best_point = p
-        flip_indices_d.pop(best_point, None)
-        X_adv[best_point] = 1.0 if X_adv[best_point] == 0.0 else 0.0  # - Flip the best point
+    X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, prob_net, early_stopping)
+    n_queries += n_queries_extra
 
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
     return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
-    return_dict["L0"] = idx
+    return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
     return return_dict
 
-
-def scar_attack(
-    hamming_distance_eps,
+def SCAR(
+    max_hamming_distance,
     net,
     X0,
     thresh,
@@ -362,10 +237,8 @@ def scar_attack(
     """
     Implementation of the SCAR algorithm (https://openreview.net/pdf?id=xCm8kiWRiBT)
     """
-    assert hamming_distance_eps <= 1.0, "Hamming distance eps must be smaller than or equal to 1"
     assert ((X0 == 1.0) | (X0 == 0.0)).all(), "Entries must be 0.0 or 1.0"
     t0 = time.time()
-    hamming_distance = int(np.prod(X0.shape) * hamming_distance_eps)
     X_adv = X0.clone()
     y = get_prediction(net, X0, mode="non_prob")  # - Use the model prediction, not the target label
     # - Find initial point p', points are stored as (g_p, idx1, idx2, ... , idxN)
@@ -428,7 +301,7 @@ def scar_attack(
     current_neighbor_dict = {}  # get_neighbor_dict(points, flipped, list(points.keys())[0], X0.shape) # - Get neighbors dict of starting point
     current_boundary_dict = get_boundary_dict(X0)
     num_flipped = 0
-    while num_flipped < hamming_distance :
+    while num_flipped < max_hamming_distance :
         if verbose:
             print(f"Queries: {n_queries}")
         # - Cache the confidence of the current adv. image
@@ -488,7 +361,7 @@ def scar_attack(
         current_boundary_dict = update_boundary_dict(current_boundary_dict, p_flip, X_adv, points, flipped)  # - Update the boundary set for the new image
         num_flipped += 1
         if verbose:
-            print(f"Flipped {num_flipped} of {hamming_distance}")
+            print(f"Flipped {num_flipped} of {max_hamming_distance}")
 
     t1 = time.time()
     if verbose:
@@ -502,14 +375,6 @@ def scar_attack(
     return_dict["predicted"] = y
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
     return return_dict
-
-
-def get_index_list(dims):
-    if len(dims) == 2:
-        return [(i, j) for i in range(dims[0]) for j in range(dims[1])]
-    else:
-        return [((i,) + el) for i in range(dims[0]) for el in get_index_list(dims[1:])]
-
 
 def prob_attack_pgd(
     prob_net,
