@@ -21,6 +21,7 @@ def deepfool(
 ):
     n_queries = 0
     X0 = torch.round(deepcopy(im))
+    #! X0 = deepcopy(im)
 
     if probabilistic:
         eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
@@ -29,6 +30,9 @@ def deepfool(
 
     n_queries += 1
     f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy().flatten()
+    try:
+        net.reset_states()
+    except: pass
     num_classes = len(f_image)
     input_shape = X0.size()
 
@@ -50,6 +54,9 @@ def deepfool(
             x = Variable(X_adv, requires_grad=True)
 
         fs = net.forward(x)
+        try:
+            net.reset_states()
+        except: pass
 
         pert = torch.Tensor([np.inf])[0].to(device)
         w = torch.zeros(input_shape).to(device)
@@ -84,6 +91,9 @@ def deepfool(
 
         n_queries += 1
         k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data).item()
+        try:
+            net.reset_states()
+        except: pass
 
         loop_i += 1
 
@@ -93,6 +103,9 @@ def deepfool(
         x = Variable(X_adv, requires_grad=True)
     n_queries += 1
     fs = net.forward(x)
+    try:
+        net.reset_states()
+    except: pass
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
     grad = torch.nan_to_num(deepcopy(x.grad.data), nan=0.0)
     grad = grad / (grad.norm() + 1e-10)
@@ -125,6 +138,9 @@ def sparsefool(
 ):
     t0 = time.time()
     n_queries = 1
+    try:
+        net.reset_states()
+    except: pass
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
 
     x_i = deepcopy(x_0)
@@ -184,6 +200,7 @@ def sparsefool(
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) else 0
+    s = return_dict["success"]; print(f"Success {s}")
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0
@@ -232,6 +249,3 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
 
 def clip_image_values(x, minv, maxv):
     return torch.clamp(x, minv, maxv)
-    # x = torch.max(x, minv)
-    # x = torch.min(x, maxv)
-    # return x

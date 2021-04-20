@@ -24,7 +24,7 @@ class bmnist_experiment:
         early_stopping = True
         boost = False
         verbose = True
-        limit = 10000
+        limit = 200
         lambda_ = 1.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
@@ -57,64 +57,64 @@ class bmnist_experiment:
             },
         )
 
-        grid = run(grid, scar_attack_on_test_set, n_threads=1, store_key="scar")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{thresh}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(grid, scar_attack_on_test_set, n_threads=1, store_key="scar")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{thresh}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(
-            grid,
-            prob_fool_on_test_set,
-            n_threads=1,
-            store_key="prob_fool",
-        )(
-            "{*}",
-            "{N_pgd}",
-            "{N_MC}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(
+        #     grid,
+        #     prob_fool_on_test_set,
+        #     n_threads=1,
+        #     store_key="prob_fool",
+        # )(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{N_MC}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-            "{*}",
-            "{N_pgd}",
-            "{round_fn}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{round_fn}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(grid, prob_sparse_fool_on_test_set, n_threads=1, store_key="prob_sparse_fool")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{lambda_}",
-            "{max_iter}",
-            "{epsilon}",
-            "{overshoot}",
-            "{max_iter_deep_fool}",
-            "{rand_minmax}",
-            "{early_stopping}",
-            "{boost}",
-            "{verbose}",
-            "{limit}"
-        )
+        # grid = run(grid, prob_sparse_fool_on_test_set, n_threads=1, store_key="prob_sparse_fool")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{lambda_}",
+        #     "{max_iter}",
+        #     "{epsilon}",
+        #     "{overshoot}",
+        #     "{max_iter_deep_fool}",
+        #     "{rand_minmax}",
+        #     "{early_stopping}",
+        #     "{boost}",
+        #     "{verbose}",
+        #     "{limit}"
+        # )
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, store_key="sparse_fool")(
             "{*}",
@@ -139,7 +139,7 @@ class bmnist_experiment:
             mean_L0 = np.mean(d["L0"][d["success"] & network_correct])
             print("%.4f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0))
 
-        attacks = ["scar","prob_fool","non_prob_fool","sparse_fool","prob_sparse_fool"]
+        attacks = ["sparse_fool","scar","prob_fool","non_prob_fool","prob_sparse_fool"]
 
         print("No Boost")
         for attack in attacks:
