@@ -20,8 +20,7 @@ def deepfool(
     rand_minmax=0.1,
 ):
     n_queries = 0
-    X0 = torch.round(deepcopy(im))
-    #! X0 = deepcopy(im)
+    X0 = deepcopy(im) # - Keep continuous version
 
     if probabilistic:
         eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
@@ -29,7 +28,7 @@ def deepfool(
         X0 = torch.clamp(X0, 0.0, 1.0)
 
     n_queries += 1
-    f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy().flatten()
+    f_image = net.forward(Variable(torch.round(X0), requires_grad=True)).data.cpu().numpy().flatten()
     try:
         net.reset_states()
     except: pass
@@ -73,19 +72,24 @@ def deepfool(
             w_k = cur_grad - grad_orig
             f_k = (fs[0, I[k]] - fs[0, I[0]]).data
 
-            pert_k = torch.abs(f_k) / (w_k.norm() + 1e-10)
+            pert_k = torch.abs(f_k) / w_k.norm()
+            assert not torch.isnan(pert_k).any(), "Found NaN"
+            assert not torch.isinf(pert_k).any(), "Found Inf"
 
             if pert_k < pert:
                 pert = pert_k + 0.
                 w = w_k + 0.
 
-        r_i = torch.clamp(pert, min=1e-4) * w / (w.norm() + 1e-10)
+        r_i = torch.clamp(pert, min=1e-4) * w / w.norm()
+        assert not torch.isnan(r_i).any(), "Found NaN"
+        assert not torch.isinf(r_i).any(), "Found Inf"
         r_tot = r_tot + r_i
 
         X_adv = X_adv + r_i
 
         if not probabilistic:
-            check_fool = round_fn(X0 + (1 + overshoot) * r_tot)
+            check_fool = round_fn(X0 + (1 + overshoot) * r_tot) # torch.round results in NaNs in the gradient
+            assert ((check_fool == 1.0) | (check_fool == 0.0)).all(), "Input must be binary"
         else:
             check_fool = X0 + (1 + overshoot) * r_tot
 
@@ -107,12 +111,15 @@ def deepfool(
         net.reset_states()
     except: pass
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
-    grad = torch.nan_to_num(deepcopy(x.grad.data), nan=0.0)
-    grad = grad / (grad.norm() + 1e-10)
+
+    grad = deepcopy(x.grad.data)
+    grad = grad / grad.norm()
+
+    assert not torch.isnan(grad).any(), "Found NaN"
+    assert not torch.isinf(grad).any(), "Found Inf"
 
     r_tot = lambda_fac * r_tot
     X_adv = X0 + r_tot
-    # X_adv = torch.clamp(X_adv, 0.0, 1.0)
 
     return grad, X_adv, n_queries
 
@@ -171,7 +178,7 @@ def sparsefool(
         fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
         fool_im = clip_image_values(fool_im, lb, ub)
         if not probabilistic:
-            fool_im_tmp = round_fn(fool_im)
+            fool_im_tmp = round_fn(fool_im) # TODO or round_fn?
         else:
             fool_im_tmp = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
 
@@ -200,7 +207,6 @@ def sparsefool(
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) else 0
-    s = return_dict["success"]; print(f"Success {s}")
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0

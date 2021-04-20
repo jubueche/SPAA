@@ -19,13 +19,13 @@ class bmnist_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = 50
+        max_hamming_distance = 200
         thresh = 0.1  # - For SCAR
         early_stopping = True
         boost = False
         verbose = True
-        limit = 20
-        lambda_ = 1.0
+        limit = 100
+        lambda_ = 2.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
         max_iter = 20
@@ -116,7 +116,7 @@ class bmnist_experiment:
         #     "{limit}"
         # )
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, store_key="sparse_fool")(
+        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="force", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
             "{lambda_}",
@@ -137,9 +137,11 @@ class bmnist_experiment:
             median_elapsed_time = np.median(d["elapsed_time"][np.array(d["success"], dtype=bool) & network_correct]) 
             median_n_queries = np.median(d["n_queries"][np.array(d["success"],dtype=bool) & network_correct])
             mean_L0 = np.mean(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
-            print("%.4f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0))
+            median_L0 = np.median(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
+            print("%.4f \t\t %.2f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0,median_L0))
 
         attacks = ["sparse_fool","scar","prob_fool","non_prob_fool","prob_sparse_fool"]
+        attacks = ["sparse_fool"]
 
         print("No Boost")
         for attack in attacks:
