@@ -106,6 +106,7 @@ def get_prediction_raw(
             output = net.forward(data)
     else:
         assert mode in ["prob", "non_prob"], "Unknown mode"
+    assert len(output.size()) == 2, "Summing over 1d"
     output = output.sum(axis=0)
     return output.cpu()
 
