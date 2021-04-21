@@ -115,8 +115,9 @@ def deepfool(
     grad = deepcopy(x.grad.data)
     grad = grad / grad.norm()
 
-    assert not torch.isnan(grad).any(), "Found NaN"
-    assert not torch.isinf(grad).any(), "Found Inf"
+    torch.nan_to_num(grad, 0.0)
+    # assert not torch.isnan(grad).any(), "Found NaN"
+    # assert not torch.isinf(grad).any(), "Found Inf"
 
     r_tot = lambda_fac * r_tot
     X_adv = X0 + r_tot
@@ -178,7 +179,7 @@ def sparsefool(
         fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
         fool_im = clip_image_values(fool_im, lb, ub)
         if not probabilistic:
-            fool_im_tmp = round_fn(fool_im) # TODO or round_fn?
+            fool_im_tmp = torch.round(fool_im) # TODO what to use here, round_fn or round?
         else:
             fool_im_tmp = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
 
@@ -243,6 +244,7 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
         r_i = torch.clamp(pert, min=1e-4) * mask * coord_vec.sign()
 
         x_i = x_i + r_i
+        #TODO  x_i = constrained_projection(im, x_i, lb, ub, k=40)
         x_i = clip_image_values(x_i, lb, ub)
 
         f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point)
@@ -252,6 +254,16 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
 
     return x_i
 
+# def constrained_projection(x_0, x_i, lb, ub, k):
+#     x_i = clip_image_values(x_i, lb, ub)
+
+#     # - Find the bits that were touched when you round them
+#     touched = (torch.round(x_0) != torch.round(x_i)).float()
+#     if torch.sum(touched) > k:
+#         indices = torch.nonzero(touched, as_tuple=False)[torch.randperm(int(torch.sum(touched)))][:k]
+#         x_i[tuple(indices.T)] = x_0[tuple(indices.T)]
+
+#     return x_i
 
 def clip_image_values(x, minv, maxv):
     return torch.clamp(x, minv, maxv)
