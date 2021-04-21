@@ -179,7 +179,7 @@ def sparsefool(
         fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
         fool_im = clip_image_values(fool_im, lb, ub)
         if not probabilistic:
-            fool_im_tmp = torch.round(fool_im) # TODO what to use here, round_fn or round?
+            fool_im_tmp = round_fn(fool_im)
         else:
             fool_im_tmp = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
 

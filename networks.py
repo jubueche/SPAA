@@ -9,7 +9,6 @@ from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
 
-
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -284,3 +283,14 @@ def train_ann_binary_mnist():
         torch.save(ann.state_dict(), path)
     ann.eval()  # - Set into eval mode for dropout layers
     return ann
+
+def load_gestures_snn(load_path = None):
+    """
+    """
+    if load_path is None:
+        load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/Gestures/ibm_gestures_snn.model")
+    
+    # - Load the model
+    # ...
+
+    # - Set model to eval mode and return
