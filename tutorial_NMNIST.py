@@ -42,7 +42,6 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
             epsilon=0.0,
             round_fn=round_fn,
             max_iter=20,
-            probabilistic=False,
             early_stopping=True,
             boost=False,
             verbose=True

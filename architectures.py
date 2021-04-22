@@ -3,7 +3,7 @@ import os.path
 from datajuicer import cachable, get, format_template
 import argparse
 import random
-from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous
+from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous, get_summed_network
 
 
 def standard_defaults():
@@ -124,9 +124,11 @@ class NMNIST:
         base_path = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
         ann = load_ann(model_path)
-        snn = get_prob_net(ann)
+        snn = get_summed_network(ann, n_classes=10)
+        prob_net = get_prob_net(ann,snn)
         data["ann"] = ann
-        data["prob_net"] = snn
+        data["snn"] = snn
+        data["prob_net"] = prob_net
         data["NMNIST_session_id"] = sid
         return data
 

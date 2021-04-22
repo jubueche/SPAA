@@ -73,42 +73,6 @@ def get_round_fn(round_fn):
     return round_fn_evaluated
 
 
-@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","rand_minmax","early_stopping","boost","limit"])
-def prob_sparse_fool_on_test_set(
-    model,
-    max_hamming_distance,
-    lambda_,
-    max_iter,
-    epsilon,
-    overshoot,
-    max_iter_deep_fool,
-    rand_minmax,
-    early_stopping,
-    boost,
-    verbose,
-    limit
-):
-    def attack_fn(X0):
-        d = sparsefool(
-            x_0=X0,
-            net=model["prob_net"],
-            max_hamming_distance=max_hamming_distance,
-            lambda_=lambda_,
-            max_iter=max_iter,
-            epsilon=epsilon,
-            overshoot=overshoot,
-            max_iter_deep_fool=max_iter_deep_fool,
-            device=device,
-            round_fn=None,
-            probabilistic=True,
-            rand_minmax=rand_minmax,
-            early_stopping=early_stopping,
-            boost=boost,
-            verbose=verbose
-        )
-        return d
-    return evaluate_on_test_set(model, limit, attack_fn)
-
 @cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","round_fn","early_stopping","boost","limit"])
 def sparse_fool_on_test_set(
     model,
@@ -122,15 +86,21 @@ def sparse_fool_on_test_set(
     early_stopping,
     boost,
     verbose,
-    limit
+    limit,
+    use_snn=False,
 ):
 
     round_fn_evaluated = get_round_fn(round_fn)
 
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
     def attack_fn(X0):
         d = sparsefool(
             x_0=X0,
-            net=model["ann"],
+            net=net,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
             max_iter=max_iter,
@@ -139,8 +109,6 @@ def sparse_fool_on_test_set(
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
             round_fn=round_fn_evaluated,
-            probabilistic=False,
-            rand_minmax=None,
             early_stopping=early_stopping,
             boost=boost,
             verbose=verbose
@@ -162,15 +130,21 @@ def non_prob_fool_on_test_set(
     boost,
     early_stopping,
     verbose,
-    limit
+    limit,
+    use_snn=False,
 ):
 
     round_fn_evaluated = get_round_fn(round_fn)
 
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
     def attack_fn(X0):
         d = non_prob_fool(
             max_hamming_distance=max_hamming_distance,
-            net=model["ann"],
+            net=net,
             X0=X0,
             round_fn=round_fn_evaluated,
             eps=eps,

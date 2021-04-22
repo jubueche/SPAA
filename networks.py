@@ -190,17 +190,19 @@ def get_det_net(ann=None):
     return model
 
 
-def get_prob_net(ann=None):
+def get_prob_net(ann=None, snn=None):
     """
     Create probabilistic network from spiking network and return.
     """
     # - Get the deterministic spiking model
-    model = get_det_net(ann)
+    if snn is None:
+        model = get_det_net(ann)
+        snn = model.spiking_model
 
     # - Create probabilistic network
     prob_net = ProbNetwork(
         ann,
-        model.spiking_model,
+        snn,
         input_shape=(2, 34, 34)
     )
     return prob_net

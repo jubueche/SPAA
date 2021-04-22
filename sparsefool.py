@@ -20,8 +20,6 @@ def deepfool(
     max_iter=50,
     device="cuda",
     round_fn=torch.round,
-    probabilistic=False,
-    rand_minmax=0.1,
 ):
     n_queries = 0
     X0 = deepcopy(im) # - Keep continuous version
@@ -122,8 +120,6 @@ def sparsefool(
     max_iter_deep_fool=50,
     device="cuda",
     round_fn=torch.round,
-    probabilistic=False,
-    rand_minmax=0.1,
     early_stopping=False,
     boost=False,
     verbose=False,
@@ -151,9 +147,7 @@ def sparsefool(
             overshoot=overshoot,
             max_iter=max_iter_deep_fool,
             device=device,
-            round_fn=round_fn,
-            probabilistic=probabilistic,
-            rand_minmax=rand_minmax
+            round_fn=round_fn
         )
 
         assert not torch.isnan(normal).any() and not torch.isnan(x_adv).any(), "Found NaN"
@@ -226,7 +220,7 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
         r_i = torch.clamp(pert, min=1e-4) * mask * coord_vec.sign()
 
         x_i = x_i + r_i
-        x_i = clip_image_values(x_i, lb, ub)
+        x_i = torch.clamp(x_i, lb, ub)
 
         f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point)
         current_sign = f_k.sign().item()
@@ -237,9 +231,6 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
     if not (mask == 0.0).all():
         x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
         
-    # x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.)
+    x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.) #! questionable
     assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
     return x_i
-
-def clip_image_values(x, minv, maxv):
-    return torch.clamp(x, minv, maxv)
