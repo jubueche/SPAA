@@ -170,7 +170,7 @@ class Redraw(object):
 def plot_attacked_prob(
     P_adv,
     target,
-    prob_net,
+    net,
     N_rows=4,
     N_cols=4,
     data=None,
@@ -182,15 +182,16 @@ def plot_attacked_prob(
     """
     def redraw_fn(f, axes):
         for i in range(len(redraw_fn.sub)):
-            redraw_fn.sub[i].draw(f, axes[i])
+            if isinstance(axes, list):
+                redraw_fn.sub[i].draw(f, axes[i])
+            else:
+                redraw_fn.sub[i].draw(f, axes)
 
     if data is None:
         data = []
         for i in range(N_rows * N_cols):
-            image = torch.round(reparameterization_bernoulli(P_adv, temperature=prob_net.temperature))
-            assert ((image >= 0.0) & (image <= 1.0)).all()
-            pred = get_prediction(prob_net, image, "non_prob")
-            store_image = torch.clamp(torch.sum(image, 1), 0.0, 1.0)
+            pred = get_prediction(net, P_adv, "non_prob")
+            store_image = torch.clamp(torch.sum(P_adv, 1), 0.0, 1.0)
             assert ((store_image == 0.0) | (store_image == 1.0)).all()
             data.append((store_image.cpu(), pred))
 

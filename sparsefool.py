@@ -7,6 +7,10 @@ import time
 
 from utils import get_prediction, reparameterization_bernoulli, get_X_adv_post_attack, get_index_list
 
+def reset(net):
+    try:
+        net.reset_states()
+    except: pass
 
 def deepfool(
     im,
@@ -21,17 +25,11 @@ def deepfool(
 ):
     n_queries = 0
     X0 = deepcopy(im) # - Keep continuous version
-
-    if probabilistic:
-        eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
-        X0 = X0 * (1 - eta) + (1 - X0) * eta
-        X0 = torch.clamp(X0, 0.0, 1.0)
+    assert ((X0 == 0.0) | (X0 == 1.0)).all(), "Non binary input deepfool"
 
     n_queries += 1
-    f_image = net.forward(Variable(torch.round(X0), requires_grad=True)).data.cpu().numpy().flatten()
-    try:
-        net.reset_states()
-    except: pass
+    reset(net) #! reset
+    f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy().flatten()
     num_classes = len(f_image)
     input_shape = X0.size()
 
@@ -47,15 +45,10 @@ def deepfool(
 
     while k_i == label and loop_i < max_iter:
 
-        if not probabilistic:
-            x = Variable(round_fn(X_adv), requires_grad=True)
-        else:
-            x = Variable(X_adv, requires_grad=True)
+        x = Variable(round_fn(X_adv), requires_grad=True) #! Rounding
 
+        reset(net) #! reset
         fs = net.forward(x)
-        try:
-            net.reset_states()
-        except: pass
 
         pert = torch.Tensor([np.inf])[0].to(device)
         w = torch.zeros(input_shape).to(device)
@@ -75,6 +68,7 @@ def deepfool(
             pert_k = torch.abs(f_k) / w_k.norm()
             assert not torch.isnan(pert_k).any(), "Found NaN"
             assert not torch.isinf(pert_k).any(), "Found Inf"
+            assert not (cur_grad == 0.0).all(), "Zero cur grad"
 
             if pert_k < pert:
                 pert = pert_k + 0.
@@ -87,37 +81,27 @@ def deepfool(
 
         X_adv = X_adv + r_i
 
-        if not probabilistic:
-            check_fool = round_fn(X0 + (1 + overshoot) * r_tot) # torch.round results in NaNs in the gradient
-            assert ((check_fool == 1.0) | (check_fool == 0.0)).all(), "Input must be binary"
-        else:
-            check_fool = X0 + (1 + overshoot) * r_tot
+        check_fool = X0 + (1 + overshoot) * r_tot #! rounding
 
         n_queries += 1
+        reset(net) #! reset
         k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data).item()
-        try:
-            net.reset_states()
-        except: pass
 
         loop_i += 1
 
-    if not probabilistic:
-        x = Variable(round_fn(X_adv), requires_grad=True)
-    else:
-        x = Variable(X_adv, requires_grad=True)
+    x = Variable(X_adv, requires_grad=True) #! rounding
+    
     n_queries += 1
+    reset(net) #! reset
     fs = net.forward(x)
-    try:
-        net.reset_states()
-    except: pass
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
 
     grad = deepcopy(x.grad.data)
-    grad = grad / grad.norm()
-
-    torch.nan_to_num(grad, 0.0)
-    # assert not torch.isnan(grad).any(), "Found NaN"
-    # assert not torch.isinf(grad).any(), "Found Inf"
+    assert not torch.isnan(grad).any() and not torch.isinf(grad).any(), "found inf or nan"
+    if grad.norm() == 0.0:
+        print("WARNING Grad norm is zero")
+    grad = grad / (grad.norm() + 1e-10)
+    assert not torch.isnan(grad).any() and not torch.isinf(grad).any(), "found inf or nan"
 
     r_tot = lambda_fac * r_tot
     X_adv = X0 + r_tot
@@ -146,9 +130,7 @@ def sparsefool(
 ):
     t0 = time.time()
     n_queries = 1
-    try:
-        net.reset_states()
-    except: pass
+    reset(net) #! reset
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
 
     x_i = deepcopy(x_0)
@@ -174,36 +156,27 @@ def sparsefool(
             rand_minmax=rand_minmax
         )
 
+        assert not torch.isnan(normal).any() and not torch.isnan(x_adv).any(), "Found NaN"
         x_i = linear_solver(x_i, normal, x_adv, lb, ub)
 
-        fool_im = x_0 + (1 + epsilon) * (x_i - x_0)
-        fool_im = clip_image_values(fool_im, lb, ub)
-        if not probabilistic:
-            fool_im_tmp = round_fn(fool_im)
-        else:
-            fool_im_tmp = torch.round(reparameterization_bernoulli(fool_im, net.temperature))
-
-        fool_label = get_prediction(net, fool_im_tmp, mode="non_prob")
+        fool_im = deepcopy(x_i)
+        fool_label = get_prediction(net, fool_im, mode="non_prob")
 
         n_queries += n_queries_deepfool + 1
         loops += 1
 
-    # - Get the indices that are most likely to be flipped
-    deviations = torch.abs(fool_im - x_0).cpu().numpy()
-    tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
-    tupled.sort(key=lambda a : a[0], reverse=True)
-    flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+    X_adv = fool_im
+    L0 = int(torch.sum(torch.abs(fool_im - x_0)))
 
-    X_adv, n_queries_extra, L0 = get_X_adv_post_attack(
-        flip_indices=flip_indices,
-        max_hamming_distance=max_hamming_distance,
-        boost=boost,
-        verbose=verbose,
-        X_adv=deepcopy(x_0),
-        y=pred_label,
-        net=net,
-        early_stopping=early_stopping
-    )
+    if early_stopping:
+        flip_indices = torch.nonzero(torch.abs(x_0-fool_im))
+        X_adv_tmp = deepcopy(x_0)
+        for k,flip_index in enumerate(flip_indices):
+            X_adv_tmp[tuple(flip_index)] = fool_im[tuple(flip_index)]
+            if not (pred_label == get_prediction(net, X_adv_tmp, mode="non_prob")):
+                L0 = k+1
+                X_adv = X_adv_tmp
+            
 
     t1 = time.time()
     return_dict = {}
@@ -214,6 +187,13 @@ def sparsefool(
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = pred_label
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
+
+    if verbose:
+        if return_dict["success"]:
+            print("Succes L0",L0)
+        else:
+            print("No success")
+
     return return_dict
 
 
@@ -221,6 +201,8 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
     input_shape = x_0.size()
 
     coord_vec = deepcopy(normal)
+    last_sign = coord_vec.sign()
+    mask = torch.zeros_like(coord_vec)
     plane_normal = deepcopy(coord_vec).view(-1)
     plane_point = deepcopy(boundary_point).view(-1)
 
@@ -244,26 +226,20 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
         r_i = torch.clamp(pert, min=1e-4) * mask * coord_vec.sign()
 
         x_i = x_i + r_i
-        #TODO  x_i = constrained_projection(im, x_i, lb, ub, k=40)
         x_i = clip_image_values(x_i, lb, ub)
 
         f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point)
         current_sign = f_k.sign().item()
 
+        last_sign = deepcopy(coord_vec.sign())
         coord_vec[r_i != 0] = 0
 
+    if not (mask == 0.0).all():
+        x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
+        
+    # x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.)
+    assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
     return x_i
-
-# def constrained_projection(x_0, x_i, lb, ub, k):
-#     x_i = clip_image_values(x_i, lb, ub)
-
-#     # - Find the bits that were touched when you round them
-#     touched = (torch.round(x_0) != torch.round(x_i)).float()
-#     if torch.sum(touched) > k:
-#         indices = torch.nonzero(touched, as_tuple=False)[torch.randperm(int(torch.sum(touched)))][:k]
-#         x_i[tuple(indices.T)] = x_0[tuple(indices.T)]
-
-#     return x_i
 
 def clip_image_values(x, minv, maxv):
     return torch.clamp(x, minv, maxv)

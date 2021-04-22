@@ -24,12 +24,12 @@ class bmnist_experiment:
         early_stopping = True
         boost = False
         verbose = True
-        limit = 5000
+        limit = 100
         lambda_ = 2.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
         max_iter = 20
-        epsilon = 0.02
+        epsilon = 0.0
         overshoot = 0.02
         max_iter_deep_fool = 50
 
@@ -57,49 +57,49 @@ class bmnist_experiment:
             },
         )
 
-        grid = run(grid, scar_attack_on_test_set, n_threads=1, store_key="scar")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{thresh}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(grid, scar_attack_on_test_set, n_threads=1, store_key="scar")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{thresh}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(
-            grid,
-            prob_fool_on_test_set,
-            n_threads=1,
-            store_key="prob_fool",
-        )(
-            "{*}",
-            "{N_pgd}",
-            "{N_MC}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(
+        #     grid,
+        #     prob_fool_on_test_set,
+        #     n_threads=1,
+        #     store_key="prob_fool",
+        # )(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{N_MC}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-            "{*}",
-            "{N_pgd}",
-            "{round_fn}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{round_fn}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
         # grid = run(grid, prob_sparse_fool_on_test_set, n_threads=1, store_key="prob_sparse_fool")(
         #     "{*}",
@@ -116,7 +116,7 @@ class bmnist_experiment:
         #     "{limit}"
         # )
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="force", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
             "{lambda_}",

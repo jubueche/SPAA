@@ -79,7 +79,6 @@ class SummedSNN(SinabsNetwork):
         super().__init__(model, spk_model, input_shape, synops)
     
     def forward(self, X):
-        assert ((X == 0.0) | (X == 1.0)).all(), "Non binary input"
         spike_out = super().forward(X)
         X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
         return X
