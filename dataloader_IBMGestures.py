@@ -182,5 +182,5 @@ def get_data_loader(dset, shuffle=True, num_workers=4, batch_size=128):
         dataset = BPTTIBMDataLoader(datadir=os.path.join(TEST_DIR,"data/"), listfile=TEST_FILE, mode='test')
     else:
         assert dset in ["train","test"], "Unknown dset"
-    dataloader = DataLoader(dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+    dataloader = DataLoader(dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size, drop_last=True)
     return dataloader
