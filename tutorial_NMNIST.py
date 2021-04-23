@@ -1,7 +1,6 @@
 from dataloader_NMNIST import NMNISTDataLoader
 import torch
 from networks import train_ann_mnist, get_det_net, get_summed_network
-from attacks import prob_fool, prob_attack_pgd
 from sparsefool import sparsefool
 from utils import get_prediction, plot_attacked_prob
 

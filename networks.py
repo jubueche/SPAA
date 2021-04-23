@@ -1,5 +1,6 @@
 import torch
 from sinabs.network import Network as SinabsNetwork
+from sinabs.layers.iaf_bptt import SpikingLayer
 from sinabs.from_torch import from_model
 from sinabs.utils import normalize_weights
 from torch import nn
@@ -8,6 +9,7 @@ from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
+import os
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -83,6 +85,43 @@ class SummedSNN(SinabsNetwork):
         X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
         return X
 
+class IBMGesturesBPTT(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        specknet_ann = nn.Sequential(
+            nn.Conv2d(2, 8, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),  # 8, 64, 64
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8,32,32
+            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 16, 32, 32
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 16, 16, 16
+            nn.Dropout2d(0.5),
+            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 8, 16, 16
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8x8x8
+            nn.Flatten(),
+            nn.Linear(8 * 8 * 8, 64, bias=False),
+            nn.ReLU(),
+            nn.Linear(64, 11, bias=False),
+        )
+        self.model = from_model(specknet_ann, threshold=1).spiking_model
+
+    def forward(self, x):
+        (batch_size, t_len, channel,  height, width) = x.shape
+        x = x.reshape((batch_size * t_len, channel, height, width))
+        out = self.model(x)
+        out = out.reshape(batch_size, t_len, 11)
+        out = torch.sum(out, dim=1)
+        return out
+
+    def reset_states(self):
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.reset_states(randomize=True)
 
 def get_ann_arch():
     """
@@ -287,11 +326,27 @@ def train_ann_binary_mnist():
 
 def load_gestures_snn(load_path = None):
     """
+    Load IBM gesture spiking CNN, turn into eval mode and return. If load_path None, load
+    mdoel from data/Gestures/ibm_gestures_snn.model
     """
     if load_path is None:
         load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/Gestures/ibm_gestures_snn.model")
     
     # - Load the model
-    # ...
+    model = IBMGesturesBPTT().to(device)
 
-    # - Set model to eval mode and return
+    stat_dic = torch.load(load_path, map_location=torch.device(device))
+    stat_dic["model.2.state"] = model.state_dict()["model.2.state"][:]
+    stat_dic["model.6.state"] = model.state_dict()["model.6.state"][:]
+    stat_dic["model.11.state"] = model.state_dict()["model.11.state"][:]
+    stat_dic["model.15.state"] = model.state_dict()["model.15.state"][:]
+
+    stat_dic["model.2.activations"] = model.state_dict()["model.2.activations"][:]
+    stat_dic["model.6.activations"] = model.state_dict()["model.6.activations"][:]
+    stat_dic["model.11.activations"] = model.state_dict()["model.11.activations"][:]
+    stat_dic["model.15.activations"] = model.state_dict()["model.15.activations"][:]
+
+    model.load_state_dict(stat_dic)
+    model.to(device)
+    model.eval()
+    return model
