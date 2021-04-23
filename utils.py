@@ -142,7 +142,10 @@ class Redraw(object):
         target
     ):
         self.initialized = False
-        self.data = data
+        if data.ndim == 4:
+            self.data = data[0]
+        else:
+            self.data = data
         self.pred = pred
         self.target = target
         self.f0 = 0
@@ -160,7 +163,7 @@ class Redraw(object):
                 ax.spines[axis].set_color(self.color)
             ax.set_yticks([])
             ax.set_xticks([])
-            self.im = ax.imshow(self.data[0])
+            self.im = ax.imshow(X)
             self.initialized = True
         else:
             self.im.set_data(X)
@@ -191,7 +194,10 @@ def plot_attacked_prob(
         data = []
         for i in range(N_rows * N_cols):
             pred = get_prediction(net, P_adv, "non_prob")
-            store_image = torch.clamp(torch.sum(P_adv, 1), 0.0, 1.0)
+            if P_adv.ndim == 5:
+                store_image = torch.clamp(torch.sum(P_adv, 2), 0.0, 1.0)
+            else:
+                store_image = torch.clamp(torch.sum(P_adv, 1), 0.0, 1.0)
             assert ((store_image == 0.0) | (store_image == 1.0)).all()
             data.append((store_image.cpu(), pred))
 

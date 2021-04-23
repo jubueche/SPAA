@@ -17,30 +17,53 @@ data_loader_test = get_data_loader(
     num_workers=4,
     batch_size=1)
 
+# - Attack parameters
+lambda_ = 2.0
+max_hamming_distance = 10000
+round_fn = lambda x : (torch.rand(size=x.shape) < x).float()
 
-num_samples = 0
-correct_samples = 0
-c = 0
-batch_size = 1
-for sample, target in data_loader_test:
+for X0, target in data_loader_test:
 
-    snn.reset_states()
-    sample = sample.float()
-
-    sample = sample.to(device)
+    X0 = X0.float()
+    X0 = X0[:,:25]
+    X0 = X0.to(device)
+    X0 = torch.clamp(X0, 0.0, 1.0)
     target = target.long().to(device)
 
-    out = snn.forward(sample)
-    _, predict = torch.max(out, 1)
+    return_dict_sparse_fool = sparsefool(
+            x_0=X0,
+            net=snn,
+            max_hamming_distance=max_hamming_distance,
+            lambda_=lambda_,
+            device=device,
+            epsilon=0.0,
+            round_fn=round_fn,
+            max_iter=20,
+            early_stopping=False,
+            boost=False,
+            verbose=True
+        )
+
+    X_adv_sparse_fool = return_dict_sparse_fool["X_adv"]
+    num_flips_sparse_fool = return_dict_sparse_fool["L0"]
+    original_prediction = return_dict_sparse_fool["predicted"]
+    model_pred_sparse_fool = get_prediction(snn, X_adv_sparse_fool, "non_prob")
+
+    if return_dict_sparse_fool["success"]:
+        break
 
 
-    correct_samples += (predict == target).sum().item()
+plot_attacked_prob(X0, int(target), snn, N_rows=1, N_cols=1, block=False, figname=1)
 
-    num_samples += batch_size
-
-    print("--------------------------------------------------------------------------------------------")
-    print("current testing accuracy", 100 * correct_samples / num_samples, '    |      ', "current progress:",
-          num_samples)
-    print("--------------------------------------------------------------------------------------------")
-    print(c)
-    c +=1
+plot_attacked_prob(
+    X0,
+    int(target),
+    snn,
+    N_rows=1,
+    N_cols=1,
+    data=[
+        (torch.clamp(torch.sum(X_adv_sparse_fool.cpu(), 2), 0.0, 1.0), model_pred_sparse_fool)
+        for _ in range(1)
+    ],
+    figname=2,
+)
