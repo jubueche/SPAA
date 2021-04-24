@@ -180,7 +180,7 @@ def sparsefool(
     return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = pred_label
-    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
+    return_dict["predicted_attacked"] = int(get_prediction(net, X_adv, mode="non_prob"))
 
     if return_dict["success"]:
         assert pred_label != get_prediction(net, X_adv, mode="non_prob"), "Success but the same label"
