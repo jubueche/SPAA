@@ -121,7 +121,7 @@ class IBMGesturesBPTT(nn.Module):
     def reset_states(self):
         for lyr in self.model:
             if isinstance(lyr, SpikingLayer):
-                lyr.reset_states(randomize=True)
+                lyr.reset_states(randomize=False)
 
 def get_ann_arch():
     """
@@ -333,7 +333,7 @@ def load_gestures_snn(load_path = None):
         load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/Gestures/ibm_gestures_snn.model")
     
     # - Load the model
-    model = IBMGesturesBPTT().to(device)
+    model = IBMGesturesBPTT()
 
     stat_dic = torch.load(load_path, map_location=torch.device(device))
     stat_dic["model.2.state"] = model.state_dict()["model.2.state"][:]
@@ -347,6 +347,6 @@ def load_gestures_snn(load_path = None):
     stat_dic["model.15.activations"] = model.state_dict()["model.15.activations"][:]
 
     model.load_state_dict(stat_dic)
-    model.to(device)
     model.eval()
+    model.to(device)
     return model

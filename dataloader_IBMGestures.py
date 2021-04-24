@@ -139,6 +139,7 @@ class GestureRecognitionDataset(IterableDataset):
 
 class BPTTIBMDataLoader(nn.Module):
     def __init__(self, datadir, listfile, mode = None):
+        download()
         self.path = datadir
         self.samples_file_name = np.loadtxt(listfile, usecols=0, dtype=str)
         self.samples_label = np.loadtxt(listfile, usecols=1)

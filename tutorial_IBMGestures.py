@@ -15,17 +15,14 @@ data_loader_test = get_data_loader(
     dset="test",
     shuffle=False,
     num_workers=4,
-    batch_size=2)
+    batch_size=1)
 
 # - Attack parameters
 lambda_ = 4.0
 max_hamming_distance = 10000
-round_fn = lambda x : (torch.rand(size=x.shape) < x).float()
+round_fn = lambda x : (torch.rand(size=x.shape, device=device) < x).float()
 
 for idx, (X0, target) in enumerate(data_loader_test):
-
-    if idx < 3 :
-        continue
 
     X0 = X0.float()
     X0 = X0[:,:10]
@@ -52,13 +49,22 @@ for idx, (X0, target) in enumerate(data_loader_test):
     original_prediction = return_dict_sparse_fool["predicted"]
     model_pred_sparse_fool = get_prediction(snn, X_adv_sparse_fool, "non_prob")
 
+    if (target == original_prediction) and  return_dict_sparse_fool["success"]:
+        assert original_prediction != model_pred_sparse_fool, "Success but the same label"
 
-    if return_dict_sparse_fool["success"] and original_prediction != 10  and model_pred_sparse_fool != 10:
-        print(f"Switched from {original_prediction} to {model_pred_sparse_fool}")
-        break
-
-
-plot_attacked_prob(X0, int(target), snn, N_rows=2, N_cols=2, block=False, figname=1)
+plot_attacked_prob(
+    X0,
+    int(target),
+    snn,
+    N_rows=2,
+    N_cols=2,
+    data=[
+        (torch.clamp(torch.sum(X0.cpu(), 2), 0.0, 1.0), original_prediction)
+        for _ in range(2*2)
+    ],
+    figname=1,
+    block=False
+)
 
 plot_attacked_prob(
     X0,

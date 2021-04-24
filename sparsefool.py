@@ -182,6 +182,9 @@ def sparsefool(
     return_dict["predicted"] = pred_label
     return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
 
+    if return_dict["success"]:
+        assert pred_label != get_prediction(net, X_adv, mode="non_prob"), "Success but the same label"
+
     if verbose:
         if return_dict["success"]:
             print("Succes L0",L0)
