@@ -49,20 +49,6 @@ for idx, (data, target) in enumerate(data_loader_test):
         lambda_=1.0,
         device=device,
         round_fn=round_fn,
-        probabilistic=False,
-        early_stopping=True,
-        boost=False,
-        verbose=True
-    )
-
-    return_dict_sparse_fool_prob = sparsefool(
-        x_0=X0,
-        net=prob_net,
-        max_hamming_distance=max_hamming_distance,
-        lambda_=2.0,
-        device=device,
-        rand_minmax=rand_minmax_deepfool,
-        probabilistic=True,
         early_stopping=True,
         boost=False,
         verbose=True
@@ -125,8 +111,6 @@ for idx, (data, target) in enumerate(data_loader_test):
 
     X_adv_sparse_fool = return_dict_sparse_fool["X_adv"].to(device)
     num_flipped_sparse_fool = return_dict_sparse_fool["L0"]
-    X_adv_sparse_fool_prob = return_dict_sparse_fool_prob["X_adv"].to(device)
-    num_flipped_sparse_fool_prob = return_dict_sparse_fool_prob["L0"]
     X_adv_non_prob = return_dict_non_prob["X_adv"].to(device)
     num_flipped_non_prob = return_dict_non_prob["L0"]
     X_adv_scar = return_dict_scar["X_adv"].to(device)
@@ -138,14 +122,12 @@ for idx, (data, target) in enumerate(data_loader_test):
 
     model_pred = get_prediction(ann_binary_mnist, X0, "non_prob")
     model_pred_sparsefool = get_prediction(ann_binary_mnist, round_fn(X_adv_sparse_fool), "non_prob")
-    model_pred_sparsefool_prob = get_prediction(prob_net, X_adv_sparse_fool_prob, "non_prob")
     model_pred_non_prob = get_prediction(ann_binary_mnist, X_adv_non_prob, "non_prob")
     model_pred_scar = get_prediction(ann_binary_mnist, X_adv_scar, "non_prob")
     model_pred_prob_boosted = get_prediction(ann_binary_mnist, X_adv_boosted, "non_prob")
     model_pred_prob = get_prediction(ann_binary_mnist, X_adv, "non_prob")
 
     print(f"Model: {int(model_pred)} SparseFool: {int(model_pred_sparsefool)} with L_0 = {num_flipped_sparse_fool}")
-    print(f"Model: {int(model_pred)} SparseFool Prob: {int(model_pred_sparsefool_prob)} with L_0 = {num_flipped_sparse_fool_prob}")
     print(f"Model: {int(model_pred)} Non-probFool: {int(model_pred_non_prob)} with L_0 = {num_flipped_non_prob}")
     print(f"Model: {int(model_pred)} Scar: {int(model_pred_scar)} with L_0 = {num_flipped_scar}")
     print(f"Model: {int(model_pred)} Boosted ProbFool: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
@@ -154,25 +136,23 @@ for idx, (data, target) in enumerate(data_loader_test):
     # break
 
 plt.figure(figsize=(20, 7))
-plt.subplot(181)
+plt.subplot(171)
 plt.imshow(torch.squeeze(X0.cpu()))
 plt.title("Orig.")
-plt.subplot(182)
+plt.subplot(172)
 plt.imshow(torch.squeeze(X_adv.cpu()))
 plt.title(f"ProbFool: {int(model_pred_prob)}")
-plt.subplot(183)
+plt.subplot(173)
 plt.imshow(torch.squeeze(X_adv_boosted.cpu()))
 plt.title(f"Boosted ProbFool: {int(model_pred_prob_boosted)}")
-plt.subplot(184)
+plt.subplot(174)
 plt.imshow(torch.squeeze(X_adv_scar.cpu()))
 plt.title(f"Scar: {int(model_pred_scar)}")
-plt.subplot(185)
+plt.subplot(175)
 plt.imshow(torch.squeeze(X_adv_non_prob.cpu()))
 plt.title(f"Non-probFool: {int(model_pred_non_prob)}")
-plt.subplot(186)
+plt.subplot(176)
 plt.imshow(torch.squeeze(round_fn(X_adv_sparse_fool).cpu()))
 plt.title(f"SparseFool-Non-Prob: {int(model_pred_sparsefool)}")
-plt.subplot(187)
-plt.imshow(torch.squeeze(X_adv_sparse_fool_prob.cpu()))
-plt.title(f"SparseFool-Prob: {int(model_pred_sparsefool_prob)}")
+plt.subplot(177)
 plt.show()

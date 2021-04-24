@@ -99,9 +99,9 @@ if __name__ == "__main__":
             original_prediction = return_dict_sparse_fool["predicted"]
             model_pred_sparse_fool = get_prediction(deepcopy(snn), X_adv_sparse_fool, "non_prob")
 
-        if (target_cur == original_prediction) and  return_dict_sparse_fool["success"]:
-            assert original_prediction != model_pred_sparse_fool, "Success but the same label"
-            break
+        # if (target_cur == original_prediction) and  return_dict_sparse_fool["success"]:
+        #     assert original_prediction != model_pred_sparse_fool, "Success but the same label"
+        #     break
 
 
     # - Plotting

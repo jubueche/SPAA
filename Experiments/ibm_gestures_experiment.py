@@ -1,17 +1,17 @@
-from architectures import BMNIST
+from architectures import IBMGestures
 from datajuicer import run, split, configure, query
 from experiment_utils import *
 import numpy as np
 
-class bmnist_experiment:
+class ibm_gestures_experiment:
     @staticmethod
     def train_grid():
-        grid = [BMNIST.make()]
+        grid = [IBMGestures.make()]
         return grid
 
     @staticmethod
     def visualize():
-        grid = bmnist_experiment.train_grid()
+        grid = ibm_gestures_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
         N_pgd = 50
@@ -19,12 +19,11 @@ class bmnist_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = 200
-        thresh = 0.1  # - For SCAR
+        max_hamming_distance = 500
         early_stopping = True
         boost = False
         verbose = True
-        limit = 400
+        limit = 30
         lambda_ = 3.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
@@ -42,7 +41,6 @@ class bmnist_experiment:
                 "eps_iter": eps_iter,
                 "norm": norm,
                 "max_hamming_distance": max_hamming_distance,
-                "thresh": thresh,
                 "boost": boost,
                 "early_stopping": early_stopping,
                 "lambda_": lambda_,
@@ -56,15 +54,6 @@ class bmnist_experiment:
                 "max_iter_deep_fool":max_iter_deep_fool
             },
         )
-
-        # grid = run(grid, scar_attack_on_test_set, n_threads=1, store_key="scar")(
-        #     "{*}",
-        #     "{max_hamming_distance}",
-        #     "{thresh}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        # )
 
         # grid = run(
         #     grid,
@@ -86,35 +75,37 @@ class bmnist_experiment:
         #     "{limit}",
         # )
 
-        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+            "{*}",
+            "{N_pgd}",
+            "{round_fn}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            "{max_hamming_distance}",
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+            True,
+        )
+
+        # grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
         #     "{*}",
-        #     "{N_pgd}",
-        #     "{round_fn}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
         #     "{max_hamming_distance}",
-        #     "{boost}",
+        #     "{lambda_}",
+        #     "{max_iter}",
+        #     "{epsilon}",
+        #     "{overshoot}",
+        #     "{max_iter_deep_fool}",
+        #     "{round_fn}",
         #     "{early_stopping}",
+        #     "{boost}",
         #     "{verbose}",
         #     "{limit}",
+        #     True, # - Use SNN
         # )
-
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{lambda_}",
-            "{max_iter}",
-            "{epsilon}",
-            "{overshoot}",
-            "{max_iter_deep_fool}",
-            "{round_fn}",
-            "{early_stopping}",
-            "{boost}",
-            "{verbose}",
-            "{limit}"
-        )
 
         def print_dict_summary(d):
             network_correct = d["predicted"] == d["targets"]
@@ -125,8 +116,8 @@ class bmnist_experiment:
             median_L0 = np.median(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
             print("%.4f \t\t %.2f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0,median_L0))
 
-        attacks = ["sparse_fool","scar","prob_fool","non_prob_fool"]
-        
+        attacks = ["sparse_fool","prob_fool","non_prob_fool"]
+
         for attack in attacks:
             result_dict = query(grid, attack, where={"boost":False})
             print(attack)

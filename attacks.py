@@ -18,7 +18,7 @@ def loss_fn(
     """
     Loss function used to find the adversarial probabilities
     """
-    outputs = torch.reshape(torch.sum(spike_out, axis=0), (1, 10))
+    outputs = torch.reshape(torch.sum(spike_out, axis=0), (1, np.prod(spike_out.shape)))
     target = torch.tensor([target], device=spike_out.device)
     return F.cross_entropy(outputs, target)
 
@@ -146,8 +146,8 @@ def non_prob_fool(
     X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
 
     for i in range(N_pgd):
-        if verbose:
-            print(f"Attack {i}/{N_pgd}")
+        # if verbose:
+        #     print(f"Attack {i}/{N_pgd}")
 
         X_adv_tmp = get_mc_P_adv(net, round_fn(X_adv_cont), y, eps_iter, norm, loss_fn, 1)
         eta_tmp = X_adv_tmp - round_fn(X_adv_cont)  # - Extract what was added to the rounded input

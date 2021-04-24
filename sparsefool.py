@@ -174,7 +174,7 @@ def sparsefool(
 
     t1 = time.time()
     return_dict = {}
-    return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) else 0
+    return_dict["success"] = 1 if not (pred_label == get_prediction(net, X_adv, mode="non_prob")) and L0 <= max_hamming_distance else 0
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0

@@ -3,7 +3,7 @@ import os.path
 from datajuicer import cachable, get, format_template
 import argparse
 import random
-from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous, get_summed_network
+from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous, get_summed_network, load_gestures_snn
 
 
 def standard_defaults():
@@ -81,6 +81,53 @@ def _get_flags(default_dict, help_dict):
 
     return flags
 
+class IBMGestures:
+    @staticmethod
+    def make():
+        d = IBMGestures.default_hyperparameters()
+
+        def mk_data_dir(mode="direct"):
+            if mode == "direct":
+                return "data/Gestures/"
+            elif mode == "bsub":
+                return "$SCRATCH/data/Gestures/"
+            raise Exception("Invalid Mode")
+
+        d["mk_data_dir"] = mk_data_dir
+        d["data_dir"] = "{mk_data_dir({mode})}"
+        d["code_file"] = "main_IBMGestures.py"
+        d["architecture"] = "IBMGestures"
+        d["train"] = mk_runner(IBMGestures, ["data_dir"])
+        return d
+
+    @staticmethod
+    def default_hyperparameters():
+        d = standard_defaults()
+        return d
+
+    @staticmethod
+    def checker(sid, table, cache_dir):
+        return True
+
+    @staticmethod
+    def get_flags():
+        default_dict = {
+            **IBMGestures.default_hyperparameters(),
+            **{"data_dir": "data/Gestures/"},
+        }
+        return _get_flags(default_dict, help())
+
+    @staticmethod
+    def loader(sid, table, cache_dir):
+        data = {}
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
+        snn = load_gestures_snn(model_path)
+        data["ann"] = None
+        data["snn"] = snn
+        data["prob_net"] = None
+        data["IBMGestures_session_id"] = sid
+        return data
 
 class NMNIST:
     @staticmethod

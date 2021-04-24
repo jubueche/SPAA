@@ -1,6 +1,7 @@
 import torch
 from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
+from dataloader_IBMGestures import get_data_loader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
@@ -16,7 +17,7 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
             assert False, "The following needs to be tested:batch size -1"
             # batch_size = nmnist_dataloader.mnist_test_ds.__len__()
         nmnist_dataloader = NMNISTDataLoader()
-        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=batch_size)
+        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=False, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "BMNIST":
         bmnist_dataloader = BMNISTDataLoader()
         if batch_size == -1:
@@ -24,7 +25,9 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
             batch_size = ds_len
             if ds_len > max_size:
                 batch_size = max_size
-        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=True, num_workers=4, batch_size=batch_size)
+        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=False, num_workers=4, batch_size=batch_size)
+    elif model['architecture'] == "IBMGestures":
+        data_loader = get_data_loader("test", shuffle=False, num_workers=4, batch_size=batch_size)
     else:
         assert model['architecture'] in ["NMNIST", "BMNIST"], "No other architecture added so far"
     return data_loader
@@ -186,7 +189,7 @@ def scar_attack_on_test_set(
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
-    split_size = 100
+    split_size = 10
 
     ret = {}
     ret["success"] = []
@@ -212,9 +215,14 @@ def evaluate_on_test_set(model, limit, attack_fn):
         return ret_f, idx
 
     for batch, target in data_loader:
-        if N_count >= limit:
+        if N_count >= limit and limit != -1:
             break
         X = batch.to(device)
+        X = X.float()
+        X = torch.clamp(X, 0.0, 1.0)
+        if model['architecture'] == "IBMGestures":
+            X = X[:,:10] # - Reduce number of timesteps
+
         N_count += X.shape[0]
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
