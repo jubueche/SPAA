@@ -1,6 +1,6 @@
 from dataloader_NMNIST import NMNISTDataLoader
 import torch
-from networks import train_ann_mnist, get_det_net, get_summed_network
+from networks import train_ann_mnist, get_summed_network
 from sparsefool import sparsefool
 from utils import get_prediction, plot_attacked_prob
 
@@ -14,7 +14,7 @@ nmnist_dataloader = NMNISTDataLoader()
 ann = train_ann_mnist()
 
 # - Turn that into network that sums over time dimension
-snn = get_summed_network(ann, n_classes=10)
+snn = get_summed_network(ann, n_classes=10).to(device)
 
 
 data_loader_test_spikes = nmnist_dataloader.get_data_loader(
@@ -24,33 +24,33 @@ data_loader_test_spikes = nmnist_dataloader.get_data_loader(
 # - Attack parameters
 lambda_ = 2.0
 max_hamming_distance = 500
-round_fn = lambda x : (torch.rand(size=x.shape) < x).float()
+round_fn = lambda x : (torch.rand(size=x.shape, device=device) < x).float()
 # round_fn = lambda x : torch.clamp(x,0.0,1.0)
 
 for idx, (data, target) in enumerate(data_loader_test_spikes):
     X0 = data
     X0 = X0[0].to(device)
     X0 = torch.clamp(X0, 0.0, 1.0)
-    
+
     return_dict_sparse_fool = sparsefool(
-            x_0=X0,
-            net=snn,
-            max_hamming_distance=max_hamming_distance,
-            lambda_=lambda_,
-            device=device,
-            epsilon=0.0,
-            round_fn=round_fn,
-            max_iter=20,
-            early_stopping=True,
-            boost=False,
-            verbose=True
-        )
+        x_0=X0,
+        net=snn,
+        max_hamming_distance=max_hamming_distance,
+        lambda_=lambda_,
+        device=device,
+        epsilon=0.0,
+        round_fn=round_fn,
+        max_iter=20,
+        early_stopping=True,
+        boost=False,
+        verbose=True
+    )
 
     X_adv_sparse_fool = return_dict_sparse_fool["X_adv"]
     num_flips_sparse_fool = return_dict_sparse_fool["L0"]
     original_prediction = return_dict_sparse_fool["predicted"]
 
-    print("Original prediction %d Sparse fool orig. %d" % (int(get_prediction(snn, X0, "non_prob")),original_prediction))
+    print("Original prediction %d Sparse fool orig. %d" % (int(get_prediction(snn, X0, "non_prob")), original_prediction))
     # - Evaluate on the attacked image
     model_pred_sparse_fool = get_prediction(snn, X_adv_sparse_fool, "non_prob")
     print(
