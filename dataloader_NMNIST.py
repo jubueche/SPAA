@@ -58,7 +58,7 @@ class NMNISTDataLoader:
                 transform=np.float32,
                 force_n_bins=20,
                 target_transform=int,
-                dt=dt)
+                dt=dt, force_n_bins=10)
         else:
             assert mode in ["ann", "snn"], "Unknown mode"
 

@@ -6,15 +6,16 @@ from utils import get_prediction, plot_attacked_prob
 from dataloader_IBMGestures import get_data_loader
 from functools import partial
 from copy import deepcopy
-import os
-from torch.multiprocessing import Pool, Process, set_start_method
+from torch.multiprocessing import Pool, set_start_method
+
 try:
-     set_start_method('spawn', force=True)
+    set_start_method("spawn", force=True)
 except RuntimeError:
     pass
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def sparse_fool_wrapper(
     net,
@@ -27,17 +28,17 @@ def sparse_fool_wrapper(
     early_stopping,
     boost,
     verbose,
-    shared
+    shared,
 ):
     if round_fn == "stoch_round":
-        round_fn = lambda x : (torch.rand(size=x.shape, device=device) < x).float()
+        round_fn = lambda x: (torch.rand(size=x.shape, device=device) < x).float()
     elif round_fn == "round":
         round_fn = torch.round
-    x_0,n = shared
+    x_0, n = shared
     return_list = []
     for x in x_0:
         if x.ndim == 4:
-            x = x.reshape((1,)+x.shape)
+            x = x.reshape((1,) + x.shape)
         return_list.append(
             sparsefool(
                 x_0=x,
@@ -50,12 +51,11 @@ def sparse_fool_wrapper(
                 max_iter=max_iter,
                 early_stopping=early_stopping,
                 boost=boost,
-                verbose=verbose
+                verbose=verbose,
             )
         )
-    return (return_list,n)
+    return (return_list, n)
 
-    
 
 if __name__ == "__main__":
 
@@ -66,33 +66,44 @@ if __name__ == "__main__":
         dset="test",
         shuffle=False,
         num_workers=4,
-        batch_size=2) # - Can vary
+        batch_size=2)  # - Can vary
 
     # - Attack parameters
     lambda_ = 4.0
     max_hamming_distance = 10000
     round_fn = "stoch_round"
 
-
     for idx, (X0, target) in enumerate(data_loader_test):
 
         X0 = X0.float()
-        X0 = X0[:,:10]
+        X0 = X0[:, :10]
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
         X_split = list(torch.split(X0, split_size_or_sections=10, dim=0))
 
-        partial_sparse_fool = partial(sparse_fool_wrapper, deepcopy(snn), max_hamming_distance, lambda_, device, 0.0, round_fn, 20, False, False, True)
+        partial_sparse_fool = partial(
+            sparse_fool_wrapper,
+            deepcopy(snn),
+            max_hamming_distance,
+            lambda_,
+            device,
+            0.0,
+            round_fn,
+            20,
+            False,
+            False,
+            True,
+        )
 
-        with Pool(1) as p:
-            results = p.map(partial_sparse_fool, list(zip(X_split,[i for i in range(len(X_split))])))
-            results.sort(key=lambda x : x[1])
+        with Pool(None) as p:
+            results = p.map(partial_sparse_fool, zip(X_split, range(len(X_split))))
+            results.sort(key=lambda x: x[1])
             results = [r[0] for r in results]
             results = [a for b in results for a in b]
 
-        for batch_idx,return_dict_sparse_fool in enumerate(results):
+        for batch_idx, return_dict_sparse_fool in enumerate(results):
             target_cur = target[batch_idx]
             X0_cur = X0[batch_idx]
             X_adv_sparse_fool = return_dict_sparse_fool["X_adv"]
@@ -103,7 +114,6 @@ if __name__ == "__main__":
         if (target_cur == original_prediction) and model_pred_sparse_fool != 10 and original_prediction != 10 and return_dict_sparse_fool["success"]:
             break
 
-
     # - Plotting
     plot_attacked_prob(
         X0_cur,
@@ -111,12 +121,10 @@ if __name__ == "__main__":
         snn,
         N_rows=2,
         N_cols=2,
-        data=[
-            (torch.clamp(torch.sum(X0.cpu(), 2), 0.0, 1.0), original_prediction)
-            for _ in range(2*2)
-        ],
+        data=[(torch.clamp(torch.sum(X0.cpu(), 2), 0.0, 1.0), original_prediction)
+              for _ in range(2 * 2)],
         figname=1,
-        block=False
+        block=False,
     )
 
     plot_attacked_prob(
@@ -125,9 +133,7 @@ if __name__ == "__main__":
         snn,
         N_rows=2,
         N_cols=2,
-        data=[
-            (torch.clamp(torch.sum(X_adv_sparse_fool.cpu(), 2), 0.0, 1.0), model_pred_sparse_fool)
-            for _ in range(2*2)
-        ],
+        data=[(torch.clamp(torch.sum(X_adv_sparse_fool.cpu(), 2), 0.0, 1.0),
+               model_pred_sparse_fool, ) for _ in range(2 * 2)],
         figname=2,
     )
