@@ -66,7 +66,7 @@ def deepfool(
             pert_k = torch.abs(f_k) / w_k.norm()
             assert not torch.isnan(pert_k).any(), "Found NaN"
             assert not torch.isinf(pert_k).any(), "Found Inf"
-            assert not (cur_grad == 0.0).all(), "Zero cur grad"
+            # assert not (cur_grad == 0.0).all(), "Zero cur grad"
 
             if pert_k < pert:
                 pert = pert_k + 0.

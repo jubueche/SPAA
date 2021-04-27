@@ -55,25 +55,25 @@ class nmnist_experiment:
             },
         )
 
-        # grid = run(
-        #     grid,
-        #     prob_fool_on_test_set,
-        #     n_threads=1,
-        #     store_key="prob_fool",
-        # )(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{N_MC}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        # )
+        grid = run(
+            grid,
+            prob_fool_on_test_set,
+            n_threads=1,
+            store_key="prob_fool",
+        )(
+            "{*}",
+            "{N_pgd}",
+            "{N_MC}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            "{max_hamming_distance}",
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+        )
 
         # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
         #     "{*}",
@@ -91,21 +91,21 @@ class nmnist_experiment:
         #     True,
         # )
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{lambda_}",
-            "{max_iter}",
-            "{epsilon}",
-            "{overshoot}",
-            "{max_iter_deep_fool}",
-            "{round_fn}",
-            "{early_stopping}",
-            "{boost}",
-            "{verbose}",
-            "{limit}",
-            True, # - Use SNN
-        )
+        # grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{lambda_}",
+        #     "{max_iter}",
+        #     "{epsilon}",
+        #     "{overshoot}",
+        #     "{max_iter_deep_fool}",
+        #     "{round_fn}",
+        #     "{early_stopping}",
+        #     "{boost}",
+        #     "{verbose}",
+        #     "{limit}",
+        #     True, # - Use SNN
+        # )
 
         def print_dict_summary(d):
             network_correct = d["predicted"] == d["targets"]

@@ -63,8 +63,10 @@ if __name__ == "__main__":
     snn = load_gestures_snn()
 
     data_loader_test = get_data_loader(
-        dset="test", shuffle=False, num_workers=4, batch_size=20
-    )  # - Can vary
+        dset="test",
+        shuffle=False,
+        num_workers=4,
+        batch_size=2)  # - Can vary
 
     # - Attack parameters
     lambda_ = 4.0
@@ -79,9 +81,7 @@ if __name__ == "__main__":
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
-        X_split = [
-            x.detach() for x in list(torch.split(X0, split_size_or_sections=5, dim=0))
-        ]
+        X_split = list(torch.split(X0, split_size_or_sections=10, dim=0))
 
         partial_sparse_fool = partial(
             sparse_fool_wrapper,
@@ -111,8 +111,8 @@ if __name__ == "__main__":
             original_prediction = return_dict_sparse_fool["predicted"]
             model_pred_sparse_fool = get_prediction(snn, X_adv_sparse_fool, "non_prob")
 
-        # if (target_cur == original_prediction) and model_pred_sparse_fool != 10 and original_prediction != 10 and return_dict_sparse_fool["success"]:
-        # break
+        if (target_cur == original_prediction) and model_pred_sparse_fool != 10 and original_prediction != 10 and return_dict_sparse_fool["success"]:
+            break
 
     # - Plotting
     plot_attacked_prob(
