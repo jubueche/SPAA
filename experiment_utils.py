@@ -72,7 +72,7 @@ def get_round_fn(round_fn):
     if round_fn == "round":
         round_fn_evaluated = torch.round
     else:
-        round_fn_evaluated = lambda x : (torch.rand(size=x.shape) < x).float()
+        round_fn_evaluated = lambda x : (torch.rand(size=x.shape, device=x.device) < x).float()
     return round_fn_evaluated
 
 
@@ -118,7 +118,7 @@ def sparse_fool_on_test_set(
         )
         return d
     return evaluate_on_test_set(model, limit, attack_fn)
-    
+
 
 @cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "round_fn", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
 def non_prob_fool_on_test_set(

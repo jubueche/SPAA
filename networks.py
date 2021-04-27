@@ -79,7 +79,7 @@ class SummedSNN(SinabsNetwork):
     ):
         self.n_classes = n_classes
         super().__init__(model, spk_model, input_shape, synops)
-    
+
     def forward(self, X):
         spike_out = super().forward(X)
         X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
@@ -195,7 +195,7 @@ def get_summed_network(ann, n_classes):
         n_classes=n_classes
     )
     return s_net
-    
+
 def get_det_net(ann=None):
     """
     Transform the continuous network into spiking network using the sinabs framework.
@@ -268,7 +268,7 @@ def train_ann_mnist():
     torch.manual_seed(42)
 
     # - Setup path
-    path = nmnist_dataloader.path / "N-MNIST/mnist_ann.pt"
+    path = nmnist_dataloader.path / "mnist_ann.pt"
 
     ann = load_ann(path)
     if ann is None:
@@ -331,7 +331,7 @@ def load_gestures_snn(load_path = None):
     """
     if load_path is None:
         load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/Gestures/ibm_gestures_snn.model")
-    
+
     # - Load the model
     model = IBMGesturesBPTT()
 
