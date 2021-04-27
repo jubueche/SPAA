@@ -35,7 +35,7 @@ class NMNISTDataLoader:
                     source_path=self.path / lab,
                     destination_path=self.path / f"{lab.lower()}_DS/",
                     pattern="*.bin",
-                    time_window=100000,
+                    time_window=50000,
                     parser=parse_nmnist)
         gen_ds("Test")
         gen_ds("Train")
@@ -56,7 +56,7 @@ class NMNISTDataLoader:
             dataset = SpikeTrainDataset(
                 self.path / f"{dset}_DS/",
                 transform=np.float32,
-                force_n_bins=20,
+                force_n_bins=10,
                 target_transform=int,
                 dt=dt)
         else:

@@ -189,7 +189,7 @@ def scar_attack_on_test_set(
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
-    split_size = 10
+    split_size = 2
 
     ret = {}
     ret["success"] = []
@@ -228,7 +228,7 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
 
-        with ThreadPoolExecutor(max_workers=1) as executor: #! change to None
+        with ThreadPoolExecutor(max_workers=None) as executor: #! change to None
             parallel_results = []
             futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):

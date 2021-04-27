@@ -66,7 +66,20 @@ if __name__ == "__main__":
         dset="test",
         shuffle=False,
         num_workers=4,
-        batch_size=2)  # - Can vary
+        batch_size=1)  # - Can vary
+
+    # # - Calculate the test accuracy
+    # correct = 0; num = 0
+    # for idx, (X0, target) in enumerate(data_loader_test):
+    #     X0 = X0.float()
+    #     X0 = X0.to(device)
+    #     # X0 = torch.clamp(X0, 0.0, 1.0)
+    #     target = target.long().to(device)
+    #     pred = get_prediction(snn, X0, mode="non_prob")
+    #     correct += (pred == target).float()
+    #     num += 1
+    # ta = float(correct / num)
+    # print(f"Test accuracy is {100*ta}")
 
     # - Attack parameters
     lambda_ = 4.0

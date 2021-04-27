@@ -16,11 +16,23 @@ ann = train_ann_mnist()
 # - Turn that into network that sums over time dimension
 snn = get_summed_network(ann, n_classes=10).to(device)
 
-
 data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
 
+# # - Calculate the test accuracy
+# correct = 0; num = 0
+# for idx, (X0, target) in enumerate(data_loader_test_spikes):
+#     if idx > 5000:
+#         break
+#     X0 = X0[0].to(device)
+#     X0 = torch.clamp(X0, 0.0, 1.0)
+#     pred = get_prediction(snn, X0, mode="non_prob")
+#     correct += (pred == target).float()
+#     num += 1
+# ta = float(correct / num)
+# print(f"Test accuracy is {100*ta}")
+
 # - Attack parameters
-lambda_ = 2.0
+lambda_ = 1.0
 max_hamming_distance = 500
 round_fn = lambda x : (torch.rand(size=x.shape, device=device) < x).float()
 # round_fn = lambda x : torch.clamp(x,0.0,1.0)
@@ -38,7 +50,7 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
         device=device,
         epsilon=0.0,
         round_fn=round_fn,
-        max_iter=20,
+        max_iter=6,
         early_stopping=True,
         boost=False,
         verbose=True
@@ -54,6 +66,9 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
     print(
         f"Sparse fool prediction {int(model_pred_sparse_fool)} with L_0 = {num_flips_sparse_fool}"
     )
+
+    if idx > 3:
+        break
 
 plot_attacked_prob(X0, target, snn, N_rows=1, N_cols=1, block=False, figname=1)
 

@@ -196,7 +196,7 @@ def get_summed_network(ann, n_classes):
         input_shape=(2, 34, 34),
         n_classes=n_classes
     )
-    return s_net
+    return s_net.to(device)
 
 def get_det_net(ann=None):
     """
