@@ -17,9 +17,7 @@ ann = train_ann_mnist()
 snn = get_summed_network(ann, n_classes=10).to(device)
 
 
-data_loader_test_spikes = nmnist_dataloader.get_data_loader(
-    dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1, dt=3000
-)
+data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
 
 # - Attack parameters
 lambda_ = 2.0

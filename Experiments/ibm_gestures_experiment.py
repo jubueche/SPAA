@@ -75,37 +75,37 @@ class ibm_gestures_experiment:
         #     "{limit}",
         # )
 
-        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-            "{*}",
-            "{N_pgd}",
-            "{round_fn}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-            True,
-        )
-
-        # grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
         #     "{*}",
-        #     "{max_hamming_distance}",
-        #     "{lambda_}",
-        #     "{max_iter}",
-        #     "{epsilon}",
-        #     "{overshoot}",
-        #     "{max_iter_deep_fool}",
+        #     "{N_pgd}",
         #     "{round_fn}",
-        #     "{early_stopping}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
         #     "{boost}",
+        #     "{early_stopping}",
         #     "{verbose}",
         #     "{limit}",
-        #     True, # - Use SNN
+        #     True,
         # )
+
+        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+            "{*}",
+            "{max_hamming_distance}",
+            "{lambda_}",
+            "{max_iter}",
+            "{epsilon}",
+            "{overshoot}",
+            "{max_iter_deep_fool}",
+            "{round_fn}",
+            "{early_stopping}",
+            "{boost}",
+            "{verbose}",
+            "{limit}",
+            True, # - Use SNN
+        )
 
         def print_dict_summary(d):
             network_correct = d["predicted"] == d["targets"]

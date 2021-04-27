@@ -111,6 +111,8 @@ class IBMGesturesBPTT(nn.Module):
         self.model = from_model(specknet_ann, threshold=1).spiking_model
 
     def forward(self, x):
+        if x.ndim == 4:
+            x = torch.reshape(x, (1,) + x.shape)
         (batch_size, t_len, channel,  height, width) = x.shape
         x = x.reshape((batch_size * t_len, channel, height, width))
         out = self.model(x)
@@ -229,7 +231,7 @@ def get_det_net(ann=None):
     return model
 
 
-def get_prob_net(ann=None, snn=None):
+def get_prob_net(ann=None, snn=None, input_shape=(2,34,34)):
     """
     Create probabilistic network from spiking network and return.
     """
@@ -242,7 +244,7 @@ def get_prob_net(ann=None, snn=None):
     prob_net = ProbNetwork(
         ann,
         snn,
-        input_shape=(2, 34, 34)
+        input_shape=input_shape
     )
     return prob_net
 

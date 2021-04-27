@@ -125,7 +125,7 @@ class IBMGestures:
         snn = load_gestures_snn(model_path)
         data["ann"] = None
         data["snn"] = snn
-        data["prob_net"] = get_prob_net(None,snn)
+        data["prob_net"] = get_prob_net(None,snn,input_shape=(2,128,128))
         data["IBMGestures_session_id"] = sid
         return data
 

@@ -35,12 +35,12 @@ class NMNISTDataLoader:
                     source_path=self.path / lab,
                     destination_path=self.path / f"{lab.lower()}_DS/",
                     pattern="*.bin",
-                    time_window=10000,
+                    time_window=100000,
                     parser=parse_nmnist)
         gen_ds("Test")
         gen_ds("Train")
 
-    def get_data_loader(self, dset, mode, shuffle=True, num_workers=4, batch_size=128, dt=1000):
+    def get_data_loader(self, dset, mode, shuffle=True, num_workers=4, batch_size=128, dt=5000):
         """
         Get the torch dataloader
         dset: "train" or "test"
@@ -56,7 +56,7 @@ class NMNISTDataLoader:
             dataset = SpikeTrainDataset(
                 self.path / f"{dset}_DS/",
                 transform=np.float32,
-                force_n_bins=10,
+                force_n_bins=20,
                 target_transform=int,
                 dt=dt)
         else:
