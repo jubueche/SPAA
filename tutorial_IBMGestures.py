@@ -66,7 +66,7 @@ if __name__ == "__main__":
         dset="test",
         shuffle=False,
         num_workers=4,
-        batch_size=2) # - Can vary
+        batch_size=1) # - Can vary
 
     # - Attack parameters
     lambda_ = 4.0
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     for idx, (X0, target) in enumerate(data_loader_test):
 
         X0 = X0.float()
-        X0 = X0[:,:20]
+        X0 = X0[:,:10]
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
@@ -99,9 +99,8 @@ if __name__ == "__main__":
             original_prediction = return_dict_sparse_fool["predicted"]
             model_pred_sparse_fool = get_prediction(deepcopy(snn), X_adv_sparse_fool, "non_prob")
 
-        # if (target_cur == original_prediction) and  return_dict_sparse_fool["success"]:
-        #     assert original_prediction != model_pred_sparse_fool, "Success but the same label"
-        #     break
+        if (target_cur == original_prediction) and model_pred_sparse_fool != 10 and original_prediction != 10 and return_dict_sparse_fool["success"]:
+            break
 
 
     # - Plotting
