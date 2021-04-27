@@ -268,7 +268,7 @@ def train_ann_mnist():
     torch.manual_seed(42)
 
     # - Setup path
-    path = nmnist_dataloader.path / "N-MNIST/mnist_ann.pt"
+    path = nmnist_dataloader.path / "mnist_ann.pt"
 
     ann = load_ann(path)
     if ann is None:

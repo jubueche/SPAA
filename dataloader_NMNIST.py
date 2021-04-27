@@ -56,6 +56,7 @@ class NMNISTDataLoader:
             dataset = SpikeTrainDataset(
                 self.path / f"{dset}_DS/",
                 transform=np.float32,
+                force_n_bins=10,
                 target_transform=int,
                 dt=dt)
         else:

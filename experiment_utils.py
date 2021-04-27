@@ -205,7 +205,8 @@ def evaluate_on_test_set(model, limit, attack_fn):
         for i in range(X_batched.shape[0]):
             print(f"{i}/{X_batched.shape[0]}")
             X0 = X_batched[i]
-            X0 = X0.reshape((1,) + X0.shape)
+            if X0.ndim < 4:
+                X0 = X0.reshape((1,) + X0.shape)
             target = int(targets[i])
             d = attack_fn(X0)
             d.pop("X_adv")
@@ -227,7 +228,7 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
 
-        with ThreadPoolExecutor(max_workers=None) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor: #! change to None
             parallel_results = []
             futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):

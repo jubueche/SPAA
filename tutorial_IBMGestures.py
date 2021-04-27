@@ -66,14 +66,13 @@ if __name__ == "__main__":
         dset="test",
         shuffle=False,
         num_workers=4,
-        batch_size=1) # - Can vary
+        batch_size=2) # - Can vary
 
     # - Attack parameters
     lambda_ = 4.0
     max_hamming_distance = 10000
     round_fn = "stoch_round"
 
-    partial_sparse_fool = partial(sparse_fool_wrapper, snn, max_hamming_distance, lambda_, device, 0.0, round_fn, 20, False, False, True)
 
     for idx, (X0, target) in enumerate(data_loader_test):
 
@@ -83,7 +82,9 @@ if __name__ == "__main__":
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
-        X_split = [x.detach() for x in list(torch.split(X0, split_size_or_sections=10, dim=0))]
+        X_split = list(torch.split(X0, split_size_or_sections=10, dim=0))
+
+        partial_sparse_fool = partial(sparse_fool_wrapper, deepcopy(snn), max_hamming_distance, lambda_, device, 0.0, round_fn, 20, False, False, True)
 
         with Pool(1) as p:
             results = p.map(partial_sparse_fool, list(zip(X_split,[i for i in range(len(X_split))])))
@@ -97,7 +98,7 @@ if __name__ == "__main__":
             X_adv_sparse_fool = return_dict_sparse_fool["X_adv"]
             num_flips_sparse_fool = return_dict_sparse_fool["L0"]
             original_prediction = return_dict_sparse_fool["predicted"]
-            model_pred_sparse_fool = get_prediction(deepcopy(snn), X_adv_sparse_fool, "non_prob")
+            model_pred_sparse_fool = get_prediction(snn, X_adv_sparse_fool, "non_prob")
 
         if (target_cur == original_prediction) and model_pred_sparse_fool != 10 and original_prediction != 10 and return_dict_sparse_fool["success"]:
             break
