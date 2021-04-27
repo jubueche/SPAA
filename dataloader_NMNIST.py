@@ -22,7 +22,7 @@ class NMNISTDataLoader:
         # - Download the data if not already exist
         def load_n_extract(lab, url):
             if not ((self.path / "Test").exists() and (self.path / "Train").exists()) :
-                p = str(self.path / "{lab}.zip")
+                p = str(self.path / f"{lab}.zip")
                 os.system(f"wget {url} -O {p}")
                 with zipfile.ZipFile(self.path / f"{lab}.zip", 'r') as f:
                     f.extractall(self.path)
