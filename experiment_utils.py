@@ -189,7 +189,7 @@ def scar_attack_on_test_set(
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
-    split_size = 2
+    split_size = 10
 
     ret = {}
     ret["success"] = []
