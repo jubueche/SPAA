@@ -19,7 +19,7 @@ class nmnist_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = 500
+        max_hamming_distance = 1000
         early_stopping = True
         boost = False
         verbose = True
@@ -55,41 +55,41 @@ class nmnist_experiment:
             },
         )
 
-        # grid = run(
-        #     grid,
-        #     prob_fool_on_test_set,
-        #     n_threads=1,
-        #     store_key="prob_fool",
-        # )(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{N_MC}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        # )
+        grid = run(
+            grid,
+            prob_fool_on_test_set,
+            n_threads=1,
+            store_key="prob_fool",
+        )(
+            "{*}",
+            "{N_pgd}",
+            "{N_MC}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            "{max_hamming_distance}",
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+        )
 
-        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{round_fn}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        #     True,
-        # )
+        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+            "{*}",
+            "{N_pgd}",
+            "{round_fn}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            "{max_hamming_distance}",
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+            True,
+        )
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",

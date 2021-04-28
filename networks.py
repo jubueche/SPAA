@@ -326,13 +326,11 @@ def train_ann_binary_mnist():
     ann.eval()  # - Set into eval mode for dropout layers
     return ann
 
-def load_gestures_snn(load_path = None):
+def load_gestures_snn(load_path):
     """
     Load IBM gesture spiking CNN, turn into eval mode and return. If load_path None, load
     mdoel from data/Gestures/ibm_gestures_snn.model
     """
-    if load_path is None:
-        load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/Gestures/ibm_gestures_snn.model")
 
     # - Load the model
     model = IBMGesturesBPTT()

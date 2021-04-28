@@ -1,9 +1,8 @@
-# TODO import data loader gestures
 import torch
 from networks import load_gestures_snn
 from sparsefool import sparsefool
 from utils import get_prediction, plot_attacked_prob
-from dataloader_IBMGestures import get_data_loader
+from dataloader_IBMGestures import IBMGesturesDataLoader
 from functools import partial
 from copy import deepcopy
 from torch.multiprocessing import Pool, set_start_method
@@ -60,9 +59,11 @@ def sparse_fool_wrapper(
 if __name__ == "__main__":
 
     # - Load the spiking CNN for IBM gestures dataset
-    snn = load_gestures_snn()
+    snn = load_gestures_snn() #! Only load this from datajuicer
 
-    data_loader_test = get_data_loader(
+    ibm_gesture_dataloader = IBMGesturesDataLoader()
+
+    data_loader_test = ibm_gesture_dataloader.get_data_loader(
         dset="test",
         shuffle=False,
         num_workers=4,
@@ -89,7 +90,6 @@ if __name__ == "__main__":
     for idx, (X0, target) in enumerate(data_loader_test):
 
         X0 = X0.float()
-        X0 = X0[:, :10]
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)

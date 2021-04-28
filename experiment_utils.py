@@ -1,7 +1,7 @@
 import torch
 from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
-from dataloader_IBMGestures import get_data_loader
+from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR

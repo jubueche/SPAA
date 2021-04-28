@@ -4,7 +4,8 @@ from datajuicer import cachable, get, format_template
 import argparse
 import random
 from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous, get_summed_network, load_gestures_snn
-
+import re
+import ujson as json
 
 def standard_defaults():
     return {}
@@ -15,7 +16,7 @@ def help():
 
 
 launch_settings = {
-    "direct": "python {code_file} {args}",
+    "direct":"mkdir -p Resources/Logs; python {code_file} {args} 2>&1 | tee Resources/Logs/{session_id}.log",
     "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -W 1:00 -n 8 -R "rusage[mem=1024]" "python3 {code_file} {args}"',
 }
 
@@ -81,6 +82,27 @@ def _get_flags(default_dict, help_dict):
 
     return flags
 
+def log(session_id, key, value, save_dir = None):
+    if save_dir is None:
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"Resources/TrainingResults/")
+    file = os.path.join(save_dir, str(session_id) + ".json")
+    exists = os.path.isfile(file)
+    directory = os.path.dirname(file)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    if exists:
+        data = open(file).read()
+        d = json.loads(data)
+    else:
+        d = {}
+    with open(file,'w+') as f:
+        if key in d:
+            d[key] += [value]
+        else:
+            d[key]=[value]
+        out = re.sub('(?<!")NaN(?!")','"NaN"', json.dumps(d))
+        f.write(out)
+
 class IBMGestures:
     @staticmethod
     def make():
@@ -103,6 +125,17 @@ class IBMGestures:
     @staticmethod
     def default_hyperparameters():
         d = standard_defaults()
+        d["epochs"] = 200
+        d["batch_size"] = 32
+        d["dt"] = 10000
+        d["seed"] = 0
+        d["boundary_loss"] = "None"
+        d["beta_robustness"] = 0.1
+        d["max_hamming_distance"] = 1000,
+        d["lambda_"] = 2.0
+        d["round_fn"] = "stoch_round"
+        d["max_iter_sparse_fool"] = 10
+        d["warmup"] = 0
         return d
 
     @staticmethod
