@@ -58,9 +58,6 @@ def sparse_fool_wrapper(
 
 if __name__ == "__main__":
 
-    # - Load the spiking CNN for IBM gestures dataset
-    snn = load_gestures_snn() #! Only load this from datajuicer
-
     ibm_gesture_dataloader = IBMGesturesDataLoader()
 
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
@@ -68,6 +65,9 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=4,
         batch_size=1)  # - Can vary
+
+    # - Load the spiking CNN for IBM gestures dataset
+    snn = load_gestures_snn() #! Only load this from datajuicer, will not work currently
 
     # # - Calculate the test accuracy
     # correct = 0; num = 0

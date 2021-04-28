@@ -126,12 +126,12 @@ class IBMGestures:
     def default_hyperparameters():
         d = standard_defaults()
         d["epochs"] = 200
-        d["batch_size"] = 32
+        d["batch_size"] = 16
         d["dt"] = 10000
         d["seed"] = 0
         d["boundary_loss"] = "None"
         d["beta_robustness"] = 0.1
-        d["max_hamming_distance"] = 1000,
+        d["max_hamming_distance"] = 1000
         d["lambda_"] = 2.0
         d["round_fn"] = "stoch_round"
         d["max_iter_sparse_fool"] = 10

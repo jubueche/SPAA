@@ -10,6 +10,7 @@ from functools import partial
 from torch.multiprocessing import Pool, set_start_method
 from sparsefool import sparsefool
 # from attacks import prob_fool, non_prob_fool
+import numpy as np
 
 try:
     set_start_method("spawn", force=True)
@@ -65,11 +66,13 @@ def robust_loss(model,
                 FLAGS,
                 is_warmup):
     # Define KL-loss
+    num_processes = 1
     batch_size = x_natural.shape[0]
+    split_size = int(np.ceil(batch_size / num_processes))
     criterion_kl = nn.KLDivLoss(size_average=False)
     x_adv = x_natural.detach()
 
-    if FLAGS.beta_robustness != 0.0 and not is_warmup:
+    if FLAGS.beta_robustness != 0.0 and not is_warmup and not FLAGS.boundary_loss == "None":
         model_copy = deepcopy(model)
         model_copy.eval()
 
@@ -87,15 +90,17 @@ def robust_loss(model,
             True,
         )
 
-        X_split = list(torch.split(x_adv, split_size_or_sections=10, dim=0))
+        X_split = list(torch.split(x_adv, split_size_or_sections=split_size, dim=0))
 
-        with Pool(processes=1) as p:
+        with Pool(processes=num_processes) as p:
             results = p.map(partial_sparse_fool, zip(X_split, range(len(X_split))))
             results.sort(key=lambda x: x[1])
             results = [r[0] for r in results]
             results = [a for b in results for a in b]
 
-        x_adv = [r["X_adv"] for r in results if r["success"]]
+        x_adv = [r["X_adv"][0] for r in results]
+        success_rate = np.mean([r["success"] for r in results])
+        print("Success rate %.3f" % success_rate)
         if len(x_adv) > 0:
             x_adv = torch.stack(x_adv)
             x_adv = Variable(torch.clamp(x_adv, 0.0, 1.0), requires_grad=False)
