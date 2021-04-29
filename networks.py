@@ -227,7 +227,7 @@ def get_det_net(ann=None):
     model = from_model(ann, input_shape=(2, 34, 34), add_spiking_output=True)
 
     # - Increase 1st layer weights by magnitude
-    model.spiking_model[0].weight.data *= 7
+    model.spiking_model[0].weight.data *= 12
     return model
 
 

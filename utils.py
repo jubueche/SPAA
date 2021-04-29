@@ -75,20 +75,25 @@ def reparameterization_bernoulli(
 def get_prediction(
     net,
     data,
-    mode="prob"
+    mode="prob",
+    batch=False,
 ):
     """
     Make prediction on data either probabilistically or deterministically. Returns class labels.
     """
-    output = get_prediction_raw(net, data, mode)
-    pred = output.argmax()
-    return pred.cpu()
+    output = get_prediction_raw(net, data, mode, batch)
+    if batch:
+        pred = output.argmax(dim=1)
+    else:
+        pred = output.argmax()
+    return pred
 
 
 def get_prediction_raw(
     net,
     data,
-    mode="prob"
+    mode="prob",
+    batch=False
 ):
     """
     Make prediction on data either probabilistically or deterministically. Returns raw output.
@@ -107,8 +112,11 @@ def get_prediction_raw(
     else:
         assert mode in ["prob", "non_prob"], "Unknown mode"
     assert len(output.size()) == 2, "Summing over 1d"
-    output = output.sum(axis=0)
-    return output.cpu()
+    if batch:
+        return output
+    else:
+        output = output.sum(axis=0)
+        return output
 
 
 def get_test_acc(

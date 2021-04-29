@@ -1,7 +1,7 @@
 from dataloader_NMNIST import NMNISTDataLoader
 import torch
 from networks import train_ann_mnist, get_summed_network
-from sparsefool import sparsefool
+from batched_sparsefool import sparsefool, deepfool
 from utils import get_prediction, plot_attacked_prob
 
 # - Set device
@@ -16,7 +16,7 @@ ann = train_ann_mnist()
 # - Turn that into network that sums over time dimension
 snn = get_summed_network(ann, n_classes=10).to(device)
 
-data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=1)
+data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=5)
 
 # # - Calculate the test accuracy
 # correct = 0; num = 0
@@ -38,7 +38,7 @@ round_fn = lambda x : (torch.rand(size=x.shape, device=device) < x).float()
 # round_fn = lambda x : torch.clamp(x,0.0,1.0)
 
 for idx, (data, target) in enumerate(data_loader_test_spikes):
-    X0 = data
+    X0 = data.to(device)
     X0 = X0[0].to(device)
     X0 = torch.clamp(X0, 0.0, 1.0)
 

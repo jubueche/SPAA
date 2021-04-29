@@ -7,57 +7,11 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from copy import deepcopy
 from functools import partial
-from torch.multiprocessing import Pool, set_start_method
-from sparsefool import sparsefool
-# from attacks import prob_fool, non_prob_fool
+from batched_sparsefool import sparsefool
 import numpy as np
-
-try:
-    set_start_method("spawn", force=True)
-except RuntimeError:
-    pass
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-def sparse_fool_wrapper(
-    net,
-    max_hamming_distance,
-    lambda_,
-    device,
-    epsilon,
-    round_fn,
-    max_iter,
-    early_stopping,
-    boost,
-    verbose,
-    shared,
-):
-    if round_fn == "stoch_round":
-        round_fn = lambda x: (torch.rand(size=x.shape, device=device) < x).float()
-    elif round_fn == "round":
-        round_fn = torch.round
-    x_0, n = shared
-    return_list = []
-    for x in x_0:
-        if x.ndim == 4:
-            x = x.reshape((1,) + x.shape)
-        return_list.append(
-            sparsefool(
-                x_0=x,
-                net=net,
-                max_hamming_distance=max_hamming_distance,
-                lambda_=lambda_,
-                device=device,
-                epsilon=epsilon,
-                round_fn=round_fn,
-                max_iter=max_iter,
-                early_stopping=early_stopping,
-                boost=boost,
-                verbose=verbose,
-            )
-        )
-    return (return_list, n)
 
 def robust_loss(model,
                 x_natural,
@@ -66,9 +20,7 @@ def robust_loss(model,
                 FLAGS,
                 is_warmup):
     # Define KL-loss
-    num_processes = 1
     batch_size = x_natural.shape[0]
-    split_size = int(np.ceil(batch_size / num_processes))
     criterion_kl = nn.KLDivLoss(size_average=False)
     x_adv = x_natural.detach()
 
@@ -76,34 +28,26 @@ def robust_loss(model,
         model_copy = deepcopy(model)
         model_copy.eval()
 
-        partial_sparse_fool = partial(
-            sparse_fool_wrapper,
-            model_copy,
-            FLAGS.max_hamming_distance,
-            FLAGS.lambda_,
-            device,
-            0.0,
-            FLAGS.round_fn,
-            FLAGS.max_iter_sparse_fool,
-            False,
-            False,
-            True,
+        if FLAGS.round_fn == "round":
+            round_fn = torch.round
+        else:
+            round_fn = lambda x: (torch.rand(size=x.shape, device=device) < x).float()
+
+        return_dict_sparse_fool = sparsefool(
+            x_0=x_adv,
+            net=model_copy,
+            max_hamming_distance=FLAGS.max_hamming_distance,
+            lambda_=FLAGS.lambda_,
+            epsilon=0.0,
+            device=device,
+            round_fn=round_fn,
+            early_stopping=False,
+            boost=False,
+            verbose=False,
         )
 
-        X_split = list(torch.split(x_adv, split_size_or_sections=split_size, dim=0))
-
-        with Pool(processes=num_processes) as p:
-            results = p.map(partial_sparse_fool, zip(X_split, range(len(X_split))))
-            results.sort(key=lambda x: x[1])
-            results = [r[0] for r in results]
-            results = [a for b in results for a in b]
-
-        x_adv = [r["X_adv"][0] for r in results]
-        success_rate = np.mean([r["success"] for r in results])
-        print("Success rate %.3f" % success_rate)
-        if len(x_adv) > 0:
-            x_adv = torch.stack(x_adv)
-            x_adv = Variable(torch.clamp(x_adv, 0.0, 1.0), requires_grad=False)
+        x_adv = return_dict_sparse_fool["X_adv"]
+        x_adv = Variable(torch.clamp(x_adv, 0.0, 1.0), requires_grad=False)
         model_copy.train()
 
     optimizer.zero_grad()

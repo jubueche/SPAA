@@ -7,6 +7,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
 from sparsefool import sparsefool
 import numpy as np
+# from torch.multiprocessing import Pool, set_start_method
+
+# try:
+#     set_start_method("spawn", force=True)
+# except RuntimeError:
+#     pass
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -189,7 +195,6 @@ def scar_attack_on_test_set(
 def evaluate_on_test_set(model, limit, attack_fn):
     data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
     N_count = 0
-    split_size = 10
 
     ret = {}
     ret["success"] = []
@@ -221,25 +226,24 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X = batch.to(device)
         X = X.float()
         X = torch.clamp(X, 0.0, 1.0)
-        if model['architecture'] == "IBMGestures":
-            X = X[:,:10] # - Reduce number of timesteps
-
+        max_workers = 1
+        split_size = int(np.ceil(X.shape[0] / max_workers))
         N_count += X.shape[0]
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
 
-        with ThreadPoolExecutor(max_workers=None) as executor: #! change to None
+        with ThreadPoolExecutor(max_workers=1) as executor: #! change to None
             parallel_results = []
             futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):
                 result = future.result()
                 parallel_results.append(result)
-            # - Sort the results
-            parallel_results = sorted(parallel_results, key=lambda k: k[1])
+                # - Sort the results
+                parallel_results = sorted(parallel_results, key=lambda k: k[1])
 
-            for ret_f, idx in parallel_results:
-                for key in ret_f:
-                    ret[key].append(ret_f[key])
+                for ret_f, idx in parallel_results:
+                    for key in ret_f:
+                        ret[key].append(ret_f[key])
 
     # - Unravel
     for key in ret:

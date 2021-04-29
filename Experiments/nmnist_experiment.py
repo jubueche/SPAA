@@ -22,9 +22,9 @@ class nmnist_experiment:
         max_hamming_distance = 1000
         early_stopping = True
         boost = False
-        verbose = True
+        verbose = False
         limit = 500
-        lambda_ = 3.0
+        lambda_ = 1.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
         max_iter = 20
