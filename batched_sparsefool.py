@@ -181,6 +181,10 @@ def sparsefool(
             for l in loops:
                 print(f"{int(l)}/{max_iter}")
 
+        to_pass = x_i[not_done]
+        if to_pass.ndim == 0 or to_pass.shape[0] == 0:
+            assert False
+
         normal, x_adv, n_queries_deepfool = deepfool(
             im=x_i[not_done],
             net=net,

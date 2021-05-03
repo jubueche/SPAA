@@ -19,12 +19,13 @@ def get_test_acc(data_loader, model):
     model.eval()
     correct = 0; num = 0
     for idx, (X0, target) in enumerate(data_loader):
-        if idx > 100:
+        if num > 1000:
             break
         X0 = X0.float()
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
+        model.reset_states()
         out = model.forward(X0)
         _, predict = torch.max(out, 1)
         correct += torch.sum((predict == target).float())
@@ -50,7 +51,7 @@ if __name__ == "__main__":
     ibm_gesture_dataloader = IBMGesturesDataLoader()
 
     data_loader_train = ibm_gesture_dataloader.get_data_loader("train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
-    data_loader_test = ibm_gesture_dataloader.get_data_loader("test", shuffle=True, num_workers=4, batch_size=5, dt=dt)
+    data_loader_test = ibm_gesture_dataloader.get_data_loader("test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
 
     # - Get the model
     model = IBMGesturesBPTT().to(device)
@@ -62,8 +63,8 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         model.train()
         for batch_idx, (sample,target) in enumerate(data_loader_train):
-            if batch_idx > 100:
-                break
+            # if batch_idx > 1000:
+            #     break
             model.reset_states()
             sample = sample.float()
             sample = torch.clamp(sample, 0.0, 1.0)
@@ -81,6 +82,7 @@ if __name__ == "__main__":
             optimizer.step()
 
             if batch_idx % 10 == 0:
+                model.reset_states()
                 out = model.forward(sample)
                 _, predict = torch.max(out, 1)
                 t_passed = (time.time() - t0) / 3600
@@ -89,12 +91,11 @@ if __name__ == "__main__":
                 log(FLAGS.session_id,"training_accuracy",float(b_acc))
                 log(FLAGS.session_id,"loss",float(loss))
 
-        # if epoch % 20 == 0:
-        #     # - Evaluate on test set and print accuracy
-        #     print("Evaluating on test set...")
-        #     test_acc = get_test_acc(data_loader_test, model)
-        #     print("Test acc. is %.4f" % (float(100*test_acc)))
-        #     log(FLAGS.session_id,"test_acc",float(test_acc))
+        # - Evaluate on test set and print accuracy
+        print("Evaluating on test set...")
+        test_acc = get_test_acc(data_loader_test, model)
+        print("Test acc. is %.4f" % (float(100*test_acc)))
+        log(FLAGS.session_id,"test_acc",float(test_acc))
 
     # - Save the network
     torch.save(model.state_dict(), model_save_path)
