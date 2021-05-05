@@ -53,8 +53,12 @@ if __name__ == "__main__":
     data_loader_train = ibm_gesture_dataloader.get_data_loader("train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
     data_loader_test = ibm_gesture_dataloader.get_data_loader("test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
 
-    # - Get the model
-    model = IBMGesturesBPTT().to(device)
+    if FLAGS.boundary_loss != "None":
+        print("Loading pre-trained model...")
+        model = load_gestures_snn("data/Gestures/pretrain.model")
+    else:
+        # - Create model
+        model = IBMGesturesBPTT().to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
@@ -63,8 +67,6 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         model.train()
         for batch_idx, (sample,target) in enumerate(data_loader_train):
-            # if batch_idx > 1000:
-            #     break
             model.reset_states()
             sample = sample.float()
             sample = torch.clamp(sample, 0.0, 1.0)

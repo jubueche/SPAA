@@ -99,7 +99,6 @@ class ibm_gestures_experiment:
             "{epsilon}",
             "{overshoot}",
             "{max_iter_deep_fool}",
-            "{round_fn}",
             "{early_stopping}",
             "{boost}",
             "{verbose}",

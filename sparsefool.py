@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import time
 
-from utils import get_prediction, reparameterization_bernoulli, get_X_adv_post_attack, get_index_list
+from utils import get_prediction, get_prediction_raw
 
 def reset(net):
     try:
@@ -19,7 +19,6 @@ def deepfool(
     overshoot=0.02,
     max_iter=50,
     device="cuda",
-    round_fn=torch.round,
 ):
     n_queries = 0
     X0 = deepcopy(im) # - Keep continuous version
@@ -43,7 +42,7 @@ def deepfool(
 
     while k_i == label and loop_i < max_iter:
 
-        x = Variable(round_fn(X_adv), requires_grad=True) #! Rounding
+        x = Variable(X_adv, requires_grad=True) #! Rounding
 
         reset(net) #! reset
         fs = net.forward(x)
@@ -72,25 +71,25 @@ def deepfool(
                 pert = pert_k + 0.
                 w = w_k + 0.
 
-        r_i = torch.clamp(pert, min=1e-4) * w / w.norm()
+        r_i = torch.clamp(pert, min=1e-4) * w / w.norm() #! change here maybe
         assert not torch.isnan(r_i).any(), "Found NaN"
         assert not torch.isinf(r_i).any(), "Found Inf"
         r_tot = r_tot + r_i
 
         X_adv = X_adv + r_i
 
-        check_fool = X0 + (1 + overshoot) * r_tot #! rounding
+        check_fool = X0 + (1 + overshoot) * r_tot
 
         n_queries += 1
-        reset(net) #! reset
+        reset(net)
         k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data).item()
 
         loop_i += 1
 
-    x = Variable(X_adv, requires_grad=True) #! rounding
+    x = Variable(X_adv, requires_grad=True)
     
     n_queries += 1
-    reset(net) #! reset
+    reset(net)
     fs = net.forward(x)
     (fs[0, k_i] - fs[0, label]).backward(retain_graph=True)
 
@@ -106,6 +105,105 @@ def deepfool(
 
     return grad, X_adv, n_queries
 
+def universal_sparsefool(
+    x_0,
+    net,
+    max_hamming_distance,
+    lb=0.0,
+    ub=1.0,
+    lambda_=2.,
+    max_iter=4,
+    max_iter_sparse_fool=20,
+    epsilon=0.02,
+    overshoot=0.2,
+    max_iter_deep_fool=50,
+    device="cuda",
+    early_stopping=False,
+    boost=False,
+    verbose=False,
+):
+    """
+    Evaluate network on each frame. Sort frames by strongest prediction. Find perturbation for
+    each sorted frame and apply universally. If misclas. return, else move to next frame.
+    """
+    t0 = time.time()
+    T = x_0.shape[0]
+    reset(net)
+    pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
+
+    def get_next_attack_frame(X):
+        net.reset_states()
+        maximum, index = torch.max(net.forward_raw(X),dim=2)
+        correct_indices = torch.arange(0,T,1)[(index == pred_label).flatten()]
+        correct_tuples = list(zip(maximum.flatten()[correct_indices],correct_indices))
+        sorted_tuples = sorted(correct_tuples, key=lambda x : x[0])[::-1]
+        frame_index_to_attack = sorted_tuples[0][1]
+        return frame_index_to_attack
+
+    label = pred_label
+    it = 0
+    n_queries = 0
+
+    X_adv = x_0
+
+    while label == pred_label and it < max_iter:
+
+        attack_frame = get_next_attack_frame(X_adv)
+        n_queries += 1
+
+        x_tmp = torch.reshape(X_adv[attack_frame], (1,) + X_adv[attack_frame].shape) 
+
+        return_dict_sparse_fool = sparsefool(
+            x_tmp,
+            net,
+            max_hamming_distance,
+            lb,
+            ub,
+            lambda_,
+            max_iter_sparse_fool,
+            epsilon,
+            overshoot,
+            max_iter_deep_fool,
+            device,
+            early_stopping,
+            boost,
+            verbose
+        )
+
+        n_queries += return_dict_sparse_fool["n_queries"]
+
+        # - Get the perturbation
+        pert = return_dict_sparse_fool["X_adv"] - x_tmp
+
+        # - Apply universally
+        X_adv = X_adv + pert
+        X_adv = torch.clamp(X_adv, 0.0, 1.0)
+
+        net.reset_states()
+        label = torch.argmax(net.forward(Variable(X_adv, requires_grad=False)).data).item()
+        n_queries += 1
+
+        it += 1
+
+    L0 = int(torch.sum(torch.abs(X_adv - x_0)))
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (pred_label == label) and L0 <= max_hamming_distance else 0
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = L0
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = int(pred_label)
+    return_dict["predicted_attacked"] = int(label)
+
+    if verbose:
+        if return_dict["success"]:
+            print("Succes L0",L0)
+        else:
+            print("No success")
+
+    return return_dict
 
 def sparsefool(
     x_0,
@@ -116,17 +214,16 @@ def sparsefool(
     lambda_=2.,
     max_iter=20,
     epsilon=0.02,
-    overshoot=0.02,
+    overshoot=0.2,
     max_iter_deep_fool=50,
     device="cuda",
-    round_fn=torch.round,
     early_stopping=False,
     boost=False,
     verbose=False,
 ):
     t0 = time.time()
     n_queries = 1
-    reset(net) #! reset
+    reset(net)
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
 
     x_i = deepcopy(x_0)
@@ -147,7 +244,6 @@ def sparsefool(
             overshoot=overshoot,
             max_iter=max_iter_deep_fool,
             device=device,
-            round_fn=round_fn
         )
 
         assert not torch.isnan(normal).any() and not torch.isnan(x_adv).any(), "Found NaN"

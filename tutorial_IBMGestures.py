@@ -1,10 +1,13 @@
 import torch
 from networks import load_gestures_snn
-from batched_sparsefool import sparsefool, deepfool
+from sparsefool import sparsefool
+from batched_sparsefool import universal_sparsefool
 from utils import get_prediction, plot_attacked_prob
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from functools import partial
 from copy import deepcopy
+from architectures import IBMGestures
+from datajuicer import run
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -19,8 +22,11 @@ if __name__ == "__main__":
         num_workers=4,
         batch_size=4)  # - Can vary
 
+    grid = [IBMGestures.make()]
+    grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
+
     # - Load the spiking CNN for IBM gestures dataset
-    snn = load_gestures_snn("data/Gestures/pretrain.model") #! Only load this from datajuicer, will not work currently
+    snn = grid[0]['snn']
 
     # # - Calculate the test accuracy
     # correct = 0; num = 0
@@ -36,9 +42,8 @@ if __name__ == "__main__":
     # print(f"Test accuracy is {100*ta}")
 
     # - Attack parameters
-    lambda_ = 4.0
+    lambda_ = 1.0
     max_hamming_distance = 10000
-    round_fn = lambda x: (torch.rand(size=x.shape, device=device) < x).float()
 
     for idx, (X0, target) in enumerate(data_loader_test):
 
@@ -47,17 +52,17 @@ if __name__ == "__main__":
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
-        return_dict_sparse_fool = sparsefool(
+        return_dict_sparse_fool = universal_sparsefool(
             x_0=X0,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
             epsilon=0.0,
+            overshoot=0.2,
             device=device,
-            round_fn=round_fn,
-            early_stopping=True,
+            early_stopping=False,
             boost=False,
-            verbose=False,
+            verbose=True,
         )
 
         X_adv = return_dict_sparse_fool["X_adv"]

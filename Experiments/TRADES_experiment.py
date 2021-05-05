@@ -7,7 +7,7 @@ class TRADES_experiment:
     @staticmethod
     def train_grid():
         grid = [IBMGestures.make()]
-        grid_trades = configure(gird, {"TRADES":True, "beta_robustness":0.1})
+        grid_trades = configure(grid, {"TRADES":True, "beta_robustness":0.1})
         return grid + grid_trades
 
     @staticmethod

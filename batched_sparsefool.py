@@ -12,6 +12,115 @@ def reset(net):
         net.reset_states()
     except: pass
 
+def universal_sparsefool(
+    x_0,
+    net,
+    max_hamming_distance,
+    lb=0.0,
+    ub=1.0,
+    lambda_=2.,
+    max_iter=4,
+    max_iter_sparse_fool=20,
+    epsilon=0.02,
+    overshoot=0.2,
+    max_iter_deep_fool=50,
+    device="cuda",
+    early_stopping=False,
+    boost=False,
+    verbose=False,
+):
+    """
+    Evaluate network on each frame. Sort frames by strongest prediction. Find perturbation for
+    each sorted frame and apply universally. If misclas. return, else move to next frame.
+    """
+    t0 = time.time()
+    B = x_0.shape[0]
+    T = x_0.shape[1]
+    reset(net)
+    pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data, axis=1)
+
+    def get_next_attack_frame(X):
+        net.reset_states()
+        maximum, index = torch.max(net.forward_raw(X),dim=2)
+        frame_index_to_attack = torch.zeros(B)
+        for b in range(B):
+            correct_indices = torch.arange(0,T,1)[(index[b] == pred_label[b]).flatten()]
+            correct_tuples = list(zip(maximum[b].flatten()[correct_indices],correct_indices))
+            sorted_tuples = sorted(correct_tuples, key=lambda x : x[0])[::-1]
+            frame_index_to_attack[b] = sorted_tuples[0][1]
+        return frame_index_to_attack
+
+    label = pred_label
+    it = torch.zeros(B)
+    n_queries = 0
+
+    X_adv = x_0
+
+    while (label == pred_label).any() and (it < max_iter).any():
+
+        not_done = label == pred_label
+
+        if (~not_done).all():
+            break
+
+        attack_frame = get_next_attack_frame(X_adv[not_done])
+        n_queries += B
+
+        x_tmp = torch.zeros(size=(torch.sum(not_done.int()),1) + x_0.shape[2:])
+        for b in range(B):
+            x_tmp[b] = X_adv[b,attack_frame[b].int()]
+
+        return_dict_sparse_fool = sparsefool(
+            x_tmp,
+            net,
+            max_hamming_distance,
+            lb,
+            ub,
+            lambda_,
+            max_iter_sparse_fool,
+            epsilon,
+            overshoot,
+            max_iter_deep_fool,
+            device,
+            early_stopping,
+            boost,
+            True
+        )
+
+        n_queries += return_dict_sparse_fool["n_queries"]
+
+        # - Get the perturbation
+        pert = return_dict_sparse_fool["X_adv"] - x_tmp
+
+        # - Apply universally
+        X_adv = X_adv + pert
+        X_adv = torch.clamp(X_adv, 0.0, 1.0)
+
+        net.reset_states()
+        label = torch.argmax(net.forward(Variable(X_adv, requires_grad=True)).data, axis=1)
+        n_queries += B
+
+        it[not_done] += 1
+
+    L0 = torch.sum(torch.abs(X_adv - x_0), dim=(1,2,3,4)).int()            
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = (~(pred_label == label) & (L0 <= max_hamming_distance)).int().cpu().numpy()
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = X_adv
+    return_dict["L0"] = L0.cpu().numpy()
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = pred_label.cpu().numpy()
+    return_dict["predicted_attacked"] = label.cpu().numpy()
+
+    if verbose:
+        print("Success rate %.4f" % np.mean(return_dict["success"]))
+        print("L0 rate %.4f" % np.mean(return_dict["L0"]))
+        print("Elapsed time %.4f" % return_dict["elapsed_time"])
+
+    return return_dict
+
 def deepfool(
     im,
     net,
@@ -19,7 +128,6 @@ def deepfool(
     overshoot=0.02,
     max_iter=50,
     device="cuda",
-    round_fn=torch.round,
     verbose=False
 ):
     assert im.ndim == 5, "Expected dimension (batch,time,polarity,H,W)"
@@ -29,7 +137,7 @@ def deepfool(
     assert ((X0 == 0.0) | (X0 == 1.0)).all(), "Non binary input deepfool"
 
     n_queries += 1
-    reset(net) #! reset
+    reset(net)
     f_image = net.forward(Variable(X0, requires_grad=True)).data.cpu().numpy()
     num_classes = f_image.shape[1]
     input_shape = X0.size()
@@ -52,9 +160,11 @@ def deepfool(
 
         not_done[loop_i == max_iter] = False
 
-        x = Variable(round_fn(X_adv), requires_grad=True) #! Rounding
+        print(not_done)
 
-        reset(net) #! reset
+        x = Variable(X_adv, requires_grad=True)
+
+        reset(net)
         fs = net.forward(x)
 
         pert = torch.Tensor(batch_size * [np.inf]).to(device)
@@ -64,7 +174,12 @@ def deepfool(
             if not_done[b]:
                 fs[b,I[b,0]].backward(retain_graph=True)
         
-        grad_orig = deepcopy(x.grad.data)
+        grad_orig = torch.zeros_like(x)
+        for b in range(batch_size):
+            if not_done[b]:
+                grad_orig[b] = deepcopy(x.grad.data[b]) 
+        
+        # grad_orig = deepcopy(x.grad.data)
         
         for k in range(1, num_classes):
             zero_gradients(x)
@@ -72,7 +187,13 @@ def deepfool(
             for b in range(batch_size):
                 if not_done[b]:
                     fs[b,I[b,k]].backward(retain_graph=True)
-            cur_grad = deepcopy(x.grad.data)
+
+            cur_grad = torch.zeros_like(x)
+            for b in range(batch_size):
+                if not_done[b]:
+                    cur_grad[b] = deepcopy(x.grad.data[b]) 
+            
+            # cur_grad = deepcopy(x.grad.data)
 
             w_k = cur_grad - grad_orig
             f_k = torch.zeros(batch_size, device=device)
@@ -104,18 +225,24 @@ def deepfool(
 
         X_adv[not_done] = X_adv[not_done] + r_i[not_done]
 
-        check_fool[not_done] = X0[not_done] + (1 + overshoot) * r_tot[not_done] #! rounding
+        check_fool[not_done] = X0[not_done] + (1 + overshoot) * r_tot[not_done]
 
         n_queries += batch_size
-        reset(net) #! reset
-        k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data, dim=1)
+        reset(net)
+        k_i = torch.zeros(batch_size, dtype=int)
+        for b in range(batch_size):
+            net.reset_states()
+            k_i[b] = torch.argmax(net.forward(Variable(torch.reshape(check_fool[b], (1,)+check_fool[b].shape), requires_grad=True)).data, dim=1)
+        
+        # net.reset_states()
+        # k_i = torch.argmax(net.forward(Variable(check_fool, requires_grad=True)).data, dim=1)
 
         loop_i += 1
 
-    x = Variable(X_adv, requires_grad=True) #! rounding
+    x = Variable(X_adv, requires_grad=True)
     
     n_queries += batch_size
-    reset(net) #! reset
+    reset(net)
     fs = net.forward(x)
     for b in range(batch_size):
         (fs[b, k_i[b]] - fs[b, labels[b]]).backward(retain_graph=True)
@@ -147,10 +274,9 @@ def sparsefool(
     lambda_=2.,
     max_iter=20,
     epsilon=0.02,
-    overshoot=0.02,
+    overshoot=0.2,
     max_iter_deep_fool=50,
     device="cuda",
-    round_fn=torch.round,
     early_stopping=False,  # not for this version
     boost=False,
     verbose=False,
@@ -159,7 +285,7 @@ def sparsefool(
     assert x_0.ndim == 5, "Dimension must be (batch size,time,polarity,H,W)"
     batch_size = x_0.shape[0]
     n_queries = batch_size
-    reset(net) #! reset
+    reset(net)
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data, axis=1)
 
     x_i = deepcopy(x_0)
@@ -192,7 +318,6 @@ def sparsefool(
             overshoot=overshoot,
             max_iter=max_iter_deep_fool,
             device=device,
-            round_fn=round_fn,
             verbose=verbose
         )
         if verbose:
@@ -250,8 +375,11 @@ def linear_solver(x_0, normal, boundary_point, lb, ub, device, verbose):
     nonzeros = torch.nonzero(coord_vec)
     sizes = torch.tensor([len(nonzeros[nonzeros[:,0] == b]) for b in range(batch_size)], device=device)
 
-    while (current_sign == sign_true).any() and (sizes > 0).any():
+    not_done = (current_sign == sign_true) & (sizes > 0)
 
+    while not_done.any():
+
+        print(sizes)
         f_k = torch.squeeze(torch.bmm(plane_normal.view(batch_size,1,-1), (x_i.view(batch_size,-1) - plane_point).view(batch_size,-1,1))) + beta
         if f_k.ndim == 0:
             f_k = f_k.view(-1)
@@ -295,6 +423,6 @@ def linear_solver(x_0, normal, boundary_point, lb, ub, device, verbose):
     if not (mask == 0.0).all():
         x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
         
-    x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.) #! questionable
+    x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.)
     assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
     return x_i

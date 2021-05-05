@@ -111,13 +111,17 @@ class IBMGesturesBPTT(nn.Module):
         self.model = from_model(specknet_ann, threshold=1).spiking_model
 
     def forward(self, x):
+        out = self.forward_raw(x)
+        out = torch.sum(out, dim=1)
+        return out
+
+    def forward_raw(self, x):
         if x.ndim == 4:
             x = torch.reshape(x, (1,) + x.shape)
         (batch_size, t_len, channel,  height, width) = x.shape
         x = x.reshape((batch_size * t_len, channel, height, width))
         out = self.model(x)
         out = out.reshape(batch_size, t_len, 11)
-        out = torch.sum(out, dim=1)
         return out
 
     def reset_states(self):
@@ -181,7 +185,7 @@ def load_ann(path, ann=None):
     if not path.exists():
         return None
     else:
-        ann.load_state_dict(torch.load(path))
+        ann.load_state_dict(torch.load(path, map_location=torch.device(device)))
         ann.eval()
         return ann
 

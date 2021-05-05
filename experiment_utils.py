@@ -82,7 +82,7 @@ def get_round_fn(round_fn):
     return round_fn_evaluated
 
 
-@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","round_fn","early_stopping","boost","limit"])
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","early_stopping","boost","limit"])
 def sparse_fool_on_test_set(
     model,
     max_hamming_distance,
@@ -91,15 +91,12 @@ def sparse_fool_on_test_set(
     epsilon,
     overshoot,
     max_iter_deep_fool,
-    round_fn,
     early_stopping,
     boost,
     verbose,
     limit,
     use_snn=False,
 ):
-
-    round_fn_evaluated = get_round_fn(round_fn)
 
     if use_snn:
         net = model["snn"]
@@ -117,7 +114,6 @@ def sparse_fool_on_test_set(
             overshoot=overshoot,
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
-            round_fn=round_fn_evaluated,
             early_stopping=early_stopping,
             boost=boost,
             verbose=verbose

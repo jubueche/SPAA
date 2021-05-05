@@ -133,7 +133,6 @@ class IBMGestures:
         d["beta_robustness"] = 0.1
         d["max_hamming_distance"] = 1000
         d["lambda_"] = 2.0
-        d["round_fn"] = "stoch_round"
         d["max_iter_sparse_fool"] = 10
         d["warmup"] = 0
         return d
