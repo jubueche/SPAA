@@ -119,10 +119,19 @@ class IBMGesturesBPTT(nn.Module):
         if x.ndim == 4:
             x = torch.reshape(x, (1,) + x.shape)
         (batch_size, t_len, channel,  height, width) = x.shape
+
+        # - Set the batch size in the spiking layer
+        self.set_batch_size(batch_size)
+
         x = x.reshape((batch_size * t_len, channel, height, width))
         out = self.model(x)
         out = out.reshape(batch_size, t_len, 11)
         return out
+
+    def set_batch_size(self, batch_size):
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.batch_size = batch_size
 
     def reset_states(self):
         for lyr in self.model:

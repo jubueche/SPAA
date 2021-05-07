@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from copy import deepcopy
 from functools import partial
-from batched_sparsefool import sparsefool, universal_sparsefool
 import numpy as np
 
 # - Set device
@@ -28,18 +27,8 @@ def robust_loss(model,
         model_copy = deepcopy(model)
         model_copy.eval()
 
-        return_dict_sparse_fool = universal_sparsefool(
-            x_0=x_adv,
-            net=model_copy,
-            max_hamming_distance=FLAGS.max_hamming_distance,
-            lambda_=FLAGS.lambda_,
-            epsilon=0.0,
-            overshoot=0.2,
-            device=device,
-            early_stopping=False,
-            boost=False,
-            verbose=True,
-        )
+
+        raise NotImplementedError
 
         x_adv = return_dict_sparse_fool["X_adv"]
         x_adv = Variable(torch.clamp(x_adv, 0.0, 1.0), requires_grad=False)

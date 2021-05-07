@@ -71,7 +71,7 @@ def deepfool(
                 pert = pert_k + 0.
                 w = w_k + 0.
 
-        r_i = torch.clamp(pert, min=1e-4) * w / w.norm() #! change here maybe
+        r_i = torch.clamp(pert, min=1e-2) * w / w.norm() #! change here maybe
         assert not torch.isnan(r_i).any(), "Found NaN"
         assert not torch.isinf(r_i).any(), "Found Inf"
         r_tot = r_tot + r_i
@@ -115,7 +115,7 @@ def universal_sparsefool(
     max_iter=4,
     max_iter_sparse_fool=20,
     epsilon=0.02,
-    overshoot=0.2,
+    overshoot=0.02,
     max_iter_deep_fool=50,
     device="cuda",
     early_stopping=False,
@@ -126,6 +126,9 @@ def universal_sparsefool(
     Evaluate network on each frame. Sort frames by strongest prediction. Find perturbation for
     each sorted frame and apply universally. If misclas. return, else move to next frame.
     """
+    if x_0.ndim == 5:
+        x_0 = x_0[0]
+        
     t0 = time.time()
     T = x_0.shape[0]
     reset(net)
@@ -214,7 +217,7 @@ def sparsefool(
     lambda_=2.,
     max_iter=20,
     epsilon=0.02,
-    overshoot=0.2,
+    overshoot=0.02,
     max_iter_deep_fool=50,
     device="cuda",
     early_stopping=False,

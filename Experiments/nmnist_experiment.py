@@ -22,8 +22,8 @@ class nmnist_experiment:
         max_hamming_distance = 1000
         early_stopping = True
         boost = False
-        verbose = False
-        limit = 500
+        verbose = True
+        limit = 100
         lambda_ = 1.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
@@ -55,41 +55,41 @@ class nmnist_experiment:
             },
         )
 
-        grid = run(
-            grid,
-            prob_fool_on_test_set,
-            n_threads=1,
-            store_key="prob_fool",
-        )(
-            "{*}",
-            "{N_pgd}",
-            "{N_MC}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-        )
+        # grid = run(
+        #     grid,
+        #     prob_fool_on_test_set,
+        #     n_threads=1,
+        #     store_key="prob_fool",
+        # )(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{N_MC}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-            "{*}",
-            "{N_pgd}",
-            "{round_fn}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-            True,
-        )
+        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{round_fn}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        #     True,
+        # )
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",
@@ -115,7 +115,7 @@ class nmnist_experiment:
             median_L0 = np.median(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
             print("%.4f \t\t %.2f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0,median_L0))
 
-        attacks = ["sparse_fool","prob_fool","non_prob_fool"]
+        attacks = ["sparse_fool"] # ,"prob_fool","non_prob_fool"]
         
         for attack in attacks:
             result_dict = query(grid, attack, where={"boost":False})
