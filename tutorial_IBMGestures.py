@@ -7,6 +7,7 @@ from functools import partial
 from copy import deepcopy
 from architectures import IBMGestures
 from datajuicer import run
+import numpy as np
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -41,23 +42,31 @@ if __name__ == "__main__":
     # print(f"Test accuracy is {100*ta}")
 
     # - Attack parameters
-    lambda_ = 2.0
-    max_hamming_distance = 1000
+    lambda_ = 1.0
+    max_hamming_distance = np.inf
 
     for idx, (X0, target) in enumerate(data_loader_test):
+
+        # - Example for what can go wrong when only 1 frame is attacked
+        # print("Idx ",idx)
+        # if idx < 21:
+        #     continue
 
         X0 = X0.float()
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
-        return_dict_sparse_fool = sparsefool(
+        return_dict_sparse_fool = universal_sparsefool(
             x_0=X0,
+            y=target,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
             epsilon=0.0,
             overshoot=0.02,
+            n_attack_frames=3,
+            step_size=0.05,
             device=device,
             early_stopping=False,
             boost=False,
@@ -65,7 +74,7 @@ if __name__ == "__main__":
         )
 
         X_adv = return_dict_sparse_fool["X_adv"]
-        break
+        # break
 
     # - Plotting
     plot_attacked_prob(
@@ -87,6 +96,6 @@ if __name__ == "__main__":
         N_rows=2,
         N_cols=2,
         data=[(torch.clamp(torch.sum(X_adv[0].cpu(), 1), 0.0, 1.0),
-               return_dict_sparse_fool["predicted_attacked"], ) for _ in range(2 * 2)],
+                return_dict_sparse_fool["predicted_attacked"], ) for _ in range(2 * 2)],
         figname=2,
     )
