@@ -1,6 +1,6 @@
 import torch
 from networks import load_gestures_snn
-from sparsefool import sparsefool, universal_sparsefool
+from sparsefool import sparsefool, universal_sparsefool, universal_attack
 from utils import get_prediction, plot_attacked_prob
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from functools import partial
@@ -18,9 +18,9 @@ if __name__ == "__main__":
 
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
         dset="test",
-        shuffle=False,
+        shuffle=True,
         num_workers=4,
-        batch_size=1)  # - Can vary
+        batch_size=10)  # - Can vary
 
     grid = [IBMGestures.make()]
     grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
@@ -28,38 +28,14 @@ if __name__ == "__main__":
     # - Load the spiking CNN for IBM gestures dataset
     snn = grid[0]['snn']
 
-    # # - Calculate the test accuracy
-    # correct = 0; num = 0
-    # for idx, (X0, target) in enumerate(data_loader_test):
-    #     X0 = X0.float()
-    #     X0 = X0.to(device)
-    #     # X0 = torch.clamp(X0, 0.0, 1.0)
-    #     target = target.long().to(device)
-    #     pred = get_prediction(snn, X0, mode="non_prob")
-    #     correct += (pred == target).float()
-    #     num += 1
-    # ta = float(correct / num)
-    # print(f"Test accuracy is {100*ta}")
-
     # - Attack parameters
     lambda_ = 1.0
     max_hamming_distance = np.inf
 
-    for idx, (X0, target) in enumerate(data_loader_test):
-
-        # - Example for what can go wrong when only 1 frame is attacked
-        # print("Idx ",idx)
-        # if idx < 21:
-        #     continue
-
-        X0 = X0.float()
-        X0 = X0.to(device)
-        X0 = torch.clamp(X0, 0.0, 1.0)
-        target = target.long().to(device)
-
-        return_dict_sparse_fool = universal_sparsefool(
-            x_0=X0,
-            y=target,
+    def attack_fn(X,y):
+        return universal_sparsefool(
+            x_0=X,
+            y=y,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
@@ -73,29 +49,48 @@ if __name__ == "__main__":
             verbose=True,
         )
 
-        X_adv = return_dict_sparse_fool["X_adv"]
-        # break
+    for idx, (X0, target) in enumerate(data_loader_test):
 
-    # - Plotting
-    plot_attacked_prob(
-        X0[0],
-        int(target),
-        snn,
-        N_rows=2,
-        N_cols=2,
-        data=[(torch.clamp(torch.sum(X0[0].cpu(), 1), 0.0, 1.0), return_dict_sparse_fool["predicted"])
-              for _ in range(2 * 2)],
-        figname=1,
-        block=False,
-    )
+        X0 = X0.float()
+        X0 = X0.to(device)
+        X0 = torch.clamp(X0, 0.0, 1.0)
+        target = target.long().to(device)
 
-    plot_attacked_prob(
-        X0[0],
-        int(target),
-        snn,
-        N_rows=2,
-        N_cols=2,
-        data=[(torch.clamp(torch.sum(X_adv[0].cpu(), 1), 0.0, 1.0),
-                return_dict_sparse_fool["predicted_attacked"], ) for _ in range(2 * 2)],
-        figname=2,
-    )
+        return_dict_universal_attack = universal_attack(
+            X=X0,
+            y=target,
+            net=snn,
+            attack_fn=attack_fn,
+            max_hamming_distance=2000,
+            target_success_rate=0.5,
+            max_iter=10,
+            device=device
+        )
+
+        X_adv = return_dict_universal_attack["X_adv"]
+
+        for i in range(X_adv.shape[0]):
+
+            # - Plotting
+            plot_attacked_prob(
+                X0[i],
+                int(target[i]),
+                snn,
+                N_rows=2,
+                N_cols=2,
+                data=[(torch.clamp(torch.sum(X0[i].cpu(), 1), 0.0, 1.0), return_dict_universal_attack["predicted"][i])
+                    for _ in range(2 * 2)],
+                figname=1,
+                block=False,
+            )
+
+            plot_attacked_prob(
+                X0[i],
+                int(target[i]),
+                snn,
+                N_rows=2,
+                N_cols=2,
+                data=[(torch.clamp(torch.sum(X_adv[i].cpu(), 1), 0.0, 1.0),
+                        return_dict_universal_attack["predicted_attacked"][i], ) for _ in range(2 * 2)],
+                figname=2,
+            )
