@@ -22,8 +22,8 @@ class nmnist_experiment:
         max_hamming_distance = 1000
         early_stopping = True
         boost = False
-        verbose = True
-        limit = 100
+        verbose = False
+        limit = 500
         lambda_ = 1.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
@@ -109,14 +109,14 @@ class nmnist_experiment:
         def print_dict_summary(d):
             network_correct = d["predicted"] == d["targets"]
             sr = np.mean(d["success"][network_correct])
-            median_elapsed_time = np.median(d["elapsed_time"][np.array(d["success"], dtype=bool) & network_correct]) 
+            median_elapsed_time = np.median(d["elapsed_time"][np.array(d["success"], dtype=bool) & network_correct])
             median_n_queries = np.median(d["n_queries"][np.array(d["success"],dtype=bool) & network_correct])
             mean_L0 = np.mean(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
             median_L0 = np.median(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
             print("%.4f \t\t %.2f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0,median_L0))
 
         attacks = ["sparse_fool"] # ,"prob_fool","non_prob_fool"]
-        
+
         for attack in attacks:
             result_dict = query(grid, attack, where={"boost":False})
             print(attack)
