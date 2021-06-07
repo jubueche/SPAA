@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import time
 from utils import get_prediction, get_prediction_raw, plot_attacked_prob
+import matplotlib.pyplot as plt
 
 def reset(net):
     try:
@@ -104,6 +105,110 @@ def deepfool(
     X_adv = X0 + r_tot
 
     return grad, X_adv, n_queries
+
+def heatmap_pruning(
+    pert,
+    heatmap,
+    max_hamming_distance
+):
+    assert heatmap.shape == pert.shape, "Shapes must be the same"
+    flip_set = []
+    indices = torch.nonzero(torch.ones_like(heatmap), as_tuple=False)
+    indices = sorted([(heatmap[tuple(xx.numpy())],) + tuple(xx.numpy()) for xx in indices], key= lambda x : x[0])[::-1]
+    added = 0
+    for i,idx in enumerate(indices):
+        true_idx = idx[1:]
+        if pert[true_idx]:
+            flip_set.append(true_idx)
+            added += 1
+        if added == max_hamming_distance:
+            break
+
+    pert_projected = torch.zeros_like(pert)
+    for flip_idx in flip_set:
+        pert_projected[flip_idx] = True
+    
+    return pert_projected
+
+
+def universal_attack(
+    X,
+    y,
+    net,
+    attack_fn,
+    max_hamming_distance,
+    target_success_rate,
+    max_iter,
+    device="gpu"
+):
+    """
+    Find universal adversarial perturbation that produces success rate at least target_success_rate
+    that runs for a maximum of max_iter iterations. The perturbation will have at most max_hamming_distance
+    L0 norm.
+    attack_fn takes as input X_i and y_i and returns a dictionary.
+    """
+    success_rate = 0.0
+    count = 0
+    input_shape = X.shape
+    t0 = time.time()
+    pert_total = torch.zeros((1,) + X.shape[1:]).bool().to(device)
+
+    # - Create a heat map
+    pert_aggregated = torch.zeros(X.shape[1:]).float()
+    for idx, (x_i,y_i) in enumerate(zip(X,y)):
+        # - Apply current universal perturbation
+        x_i_p = x_i.clone()
+        reset(net)
+        pred_label = torch.argmax(net.forward(Variable(x_i_p, requires_grad=False)).data).item()
+        if pred_label == y_i:
+            return_dict_adv = attack_fn(x_i_p,y_i)
+            pert = (return_dict_adv["X_adv"] != x_i_p)
+            pert_aggregated[pert] += 1.
+
+        if idx > 5: break
+
+    plt.imshow(torch.sum(pert_aggregated, axis=[0,1]))
+    plt.show()
+
+    # plot_attacked_prob(pert_aggregated,0,net,N_rows=2,N_cols=2,data=4*[(torch.sum(pert_aggregated, axis=1),0)])
+
+    while count < max_iter and success_rate < target_success_rate:
+
+        for idx, (x_i,y_i) in enumerate(zip(X,y)):
+            # - Apply current universal perturbation
+            x_i_p = x_i.clone()
+            x_i_p[torch.squeeze(pert_total)] = 1. - x_i[torch.squeeze(pert_total)]
+            reset(net)
+            pred_label = torch.argmax(net.forward(Variable(x_i_p, requires_grad=False)).data).item()
+
+            if pred_label == y_i:
+
+                return_dict_adv = attack_fn(x_i_p,y_i)
+                pert = (return_dict_adv["X_adv"] != x_i_p)
+                
+                # - Update the current universal attack
+                pert_total = pert_total | torch.tensor(pert).to(device)
+
+        pert_total = heatmap_pruning(torch.squeeze(pert_total),heatmap=pert_aggregated, max_hamming_distance=max_hamming_distance)
+        X_pert = X.clone()
+        X_pert[:,pert_total] = 1. - X[:,pert_total]
+        reset(net)
+        pred_X_pert = torch.argmax(net.forward(X_pert), dim=1)
+        success_rate = torch.mean((pred_X_pert != y).float())
+        print(f"Success rate {success_rate}")
+        count += 1
+
+    t1 = time.time()
+    X_adv = X.clone()
+    X_adv[:,pert_total] = 1. - X[:,pert_total]
+    return_dict = {}
+    return_dict["predicted"] = torch.argmax(net.forward(X), dim=1)
+    return_dict["predicted_attacked"] = torch.argmax(net.forward(X_adv), dim=1)
+    return_dict["success_rate"] = success_rate
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = torch.reshape(X_adv, input_shape)
+    return return_dict
+
 
 def universal_sparsefool(
     x_0,

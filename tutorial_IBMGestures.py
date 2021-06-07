@@ -28,29 +28,11 @@ if __name__ == "__main__":
     # - Load the spiking CNN for IBM gestures dataset
     snn = grid[0]['snn']
 
-    # # - Calculate the test accuracy
-    # correct = 0; num = 0
-    # for idx, (X0, target) in enumerate(data_loader_test):
-    #     X0 = X0.float()
-    #     X0 = X0.to(device)
-    #     # X0 = torch.clamp(X0, 0.0, 1.0)
-    #     target = target.long().to(device)
-    #     pred = get_prediction(snn, X0, mode="non_prob")
-    #     correct += (pred == target).float()
-    #     num += 1
-    # ta = float(correct / num)
-    # print(f"Test accuracy is {100*ta}")
-
     # - Attack parameters
     lambda_ = 1.0
     max_hamming_distance = np.inf
 
     for idx, (X0, target) in enumerate(data_loader_test):
-
-        # - Example for what can go wrong when only 1 frame is attacked
-        # print("Idx ",idx)
-        # if idx < 21:
-        #     continue
 
         X0 = X0.float()
         X0 = X0.to(device)
