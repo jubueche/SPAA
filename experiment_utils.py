@@ -5,7 +5,7 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
-from sparsefool import sparsefool
+from sparsefool import sparsefool, universal_attack, universal_sparsefool
 import numpy as np
 # from torch.multiprocessing import Pool, set_start_method
 
@@ -33,7 +33,8 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
                 batch_size = max_size
         data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=False, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "IBMGestures":
-        data_loader = get_data_loader("test", shuffle=False, num_workers=4, batch_size=batch_size)
+        ibm_gestures_dataloader = IBMGesturesDataLoader()
+        data_loader = ibm_gestures_dataloader.get_data_loader("test", shuffle=False, num_workers=4, batch_size=batch_size)
     else:
         assert model['architecture'] in ["NMNIST", "BMNIST"], "No other architecture added so far"
     return data_loader
@@ -82,7 +83,7 @@ def get_round_fn(round_fn):
     return round_fn_evaluated
 
 
-@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","max_iter_deep_fool","early_stopping","boost","limit"])
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","step_size","max_iter_deep_fool","early_stopping","boost","limit"])
 def sparse_fool_on_test_set(
     model,
     max_hamming_distance,
@@ -90,6 +91,7 @@ def sparse_fool_on_test_set(
     max_iter,
     epsilon,
     overshoot,
+    step_size,
     max_iter_deep_fool,
     early_stopping,
     boost,
@@ -112,6 +114,7 @@ def sparse_fool_on_test_set(
             max_iter=max_iter,
             epsilon=epsilon,
             overshoot=overshoot,
+            step_size=step_size,
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
             early_stopping=early_stopping,
@@ -121,6 +124,49 @@ def sparse_fool_on_test_set(
         return d
     return evaluate_on_test_set(model, limit, attack_fn)
 
+
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","n_attack_frames","step_size","max_iter_deep_fool","early_stopping","boost","limit"])
+def frame_based_sparse_fool_on_test_set(
+    model,
+    max_hamming_distance,
+    lambda_,
+    max_iter,
+    epsilon,
+    overshoot,
+    n_attack_frames,
+    step_size,
+    max_iter_deep_fool,
+    early_stopping,
+    boost,
+    verbose,
+    limit,
+    use_snn=False,
+):
+
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    def attack_fn(X0):
+        d = universal_sparsefool(
+            x_0=X0,
+            net=net,
+            max_hamming_distance=max_hamming_distance,
+            lambda_=lambda_,
+            max_iter=max_iter,
+            epsilon=epsilon,
+            overshoot=overshoot,
+            n_attack_frames=n_attack_frames,
+            step_size=step_size,
+            max_iter_deep_fool=max_iter_deep_fool,
+            device=device,
+            early_stopping=early_stopping,
+            boost=boost,
+            verbose=verbose,
+        )
+        return d
+    return evaluate_on_test_set(model, limit, attack_fn)
 
 @cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "round_fn", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
 def non_prob_fool_on_test_set(

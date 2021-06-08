@@ -20,7 +20,7 @@ if __name__ == "__main__":
         dset="test",
         shuffle=True,
         num_workers=4,
-        batch_size=100)  # - Can vary
+        batch_size=64)  # - Can vary
 
     grid = [IBMGestures.make()]
     grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
@@ -35,7 +35,6 @@ if __name__ == "__main__":
     def attack_fn(X,y):
         return universal_sparsefool(
             x_0=X,
-            y=y,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
