@@ -210,7 +210,7 @@ def universal_attack(
     return return_dict
 
 
-def universal_sparsefool(
+def frame_based_sparsefool(
     x_0,
     net,
     max_hamming_distance,

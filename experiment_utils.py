@@ -5,7 +5,7 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
-from sparsefool import sparsefool, universal_attack, universal_sparsefool
+from sparsefool import sparsefool, universal_attack, frame_based_sparsefool
 import numpy as np
 # from torch.multiprocessing import Pool, set_start_method
 
@@ -149,7 +149,7 @@ def frame_based_sparse_fool_on_test_set(
         net = model["ann"]
 
     def attack_fn(X0):
-        d = universal_sparsefool(
+        d = frame_based_sparsefool(
             x_0=X0,
             net=net,
             max_hamming_distance=max_hamming_distance,
