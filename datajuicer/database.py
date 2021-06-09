@@ -13,10 +13,12 @@ def _format_key(key):
 def select(db_file, column, table, where, order_by):
     table = '\"' + table + '\"'
     try:
+        where_id = "" if where == {} else "WHERE"
         conn = sqlite3.connect(db_file)
-        command = f"SELECT {column} FROM {table} WHERE "
+        command = f"SELECT {column} FROM {table} {where_id} "
         command += " AND ".join([f"{_format_key(key)}={_format_value(value)}" for key, value in where.items()])
-        command += f" ORDER BY {order_by} DESC;"
+        if order_by is not None:
+            command += f" ORDER BY {order_by} DESC;"
         cur = conn.cursor()
         cur.execute(command)
         result = [sid[0] for sid in cur.fetchall()] 
@@ -28,12 +30,39 @@ def select(db_file, column, table, where, order_by):
     
     return result
 
+def remove(db_file, table, key_name, primary_key):
+    table = '\"' + table + '\"'
+
+    delete = f"DELETE FROM {table} WHERE {_format_key(key_name)} = {primary_key}"
+
+    try:
+        conn = sqlite3.connect(db_file, timeout=100)
+        c = conn.cursor()
+        c.execute(delete)
+        conn.commit()
+        c.close()
+    except sqlite3.Error as error:
+        print("Failed to delete data into sqlite table", error)
+        raise Exception
+    finally:
+        if (conn):
+            conn.close()
+
+def get_tables(db_file):
+    command = f"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    try:
+        conn = sqlite3.connect(db_file)
+        cur = conn.cursor()
+        cur.execute(command)
+        result  = [name[0] for name in cur.fetchall()] 
+    except sqlite3.Error as error:
+        return []
+    if (conn):
+        conn.close()
+    return result
+
 def insert(db_file, table, row, primary_key):
     table = '\"' + table + '\"'
-    try:
-        row.pop('')
-    except:
-        pass
     fieldset = []
     for key, val in row.items():
         if type(val) == int:

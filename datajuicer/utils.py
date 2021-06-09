@@ -8,9 +8,11 @@ import datajuicer.in_out as in_out
 import datajuicer.database as database
 import time
 
-#run_mode in normal, force, load
+#run_mode in normal, force, load, load_any
 
 #cache_mode in normal, no_save
+class NOMODEL:
+    pass
 
 def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_dir="Sessions/", store_key=None):
     def _runner(grid, *args, **kwargs):
@@ -45,8 +47,7 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
                     dependencies[dep_name] = get(boundargs.arguments[arg], key)
                 else:
                     dependencies[dep_name] = boundargs.arguments[dep_name]
-            if dependencies == {}:
-                dependencies = {"":""}
+
             session_ids = database.select(db_file = os.path.join(cache_dir, "sessions.db"),column = "session_id", table = func.table_name, where= dependencies, order_by="start_time")
             sid = None
             for session_id in session_ids:
@@ -59,6 +60,8 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
             if sid is None or run_mode == "force":
                 if run_mode == "load":
                     raise Exception("No Sessions Found")
+                if run_mode == "load_any":
+                    return NOMODEL
                 random.seed()
                 sid = random.randint(1000000000, 9999999999)
                 data["session_id"] = sid
@@ -76,7 +79,7 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
             
             if store_key is None:
                 return ret
-            elif store_key == "*" and not ret == None:
+            elif store_key == "*":
                 data.update(ret)
                 return data
             else:
@@ -87,13 +90,15 @@ def run(grid, func,n_threads=1, run_mode="normal", cache_mode="normal", cache_di
             grid = [grid]
         
         if n_threads==1:
-            return [_run(copy.copy(data),func,list(args),kwargs) for data in grid]
+            ret = [_run(copy.copy(data),func,list(args),kwargs) for data in grid]
+            
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
+                param_list = [(copy.copy(data),func,list(args),kwargs) for data in grid]
+                futures = [executor.submit(_run, *param) for param in param_list]
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
-            param_list = [(copy.copy(data),func,list(args),kwargs) for data in grid]
-            futures = [executor.submit(_run, *param) for param in param_list]
-
-        return [f.result() for f in futures] 
+            ret = [f.result() for f in futures] 
+        return [r for r in ret if not r is NOMODEL]
     return lambda *args, **kwargs: _runner(grid, *args, **kwargs)
         
 
@@ -116,8 +121,9 @@ def format_template(data, template):
             return get(data, template[1:-1])
         else:
             return parser.replace(template, lambda k: str(get(data, k)))
-
-def get(data, key):
+class NODEFAULT:
+    pass
+def get(data, key, default=NODEFAULT):
     if key == "*":
         return data
     func_name, l_args = parser.get_arg_list(key)
@@ -125,7 +131,13 @@ def get(data, key):
     if func_name[0] == "!":
         literal = True
         func_name = func_name[1:]
-    output = data[format_template(data, func_name)]
+    try:
+        output = data[format_template(data, func_name)]
+    except KeyError as e:
+        if default is NODEFAULT:
+            raise(e)
+        else:
+            output = default
     while type(output) is str and "{" in output:
         output = format_template(data, output)
     for args in l_args:
@@ -142,7 +154,7 @@ def split(grid, key, values, where={}):
     
     output = []
     for data in grid:
-        if all([data[kkey]==where[kkey] for kkey in where]):
+        if all([get(data,kkey)==where[kkey] for kkey in where]):
             for val in values:
                 copied = copy.copy(data)
                 copied[key] = val
@@ -152,20 +164,94 @@ def split(grid, key, values, where={}):
     return output
 
 def configure(grid, dictionary, where={}):
+    if type(grid) is dict:
+        grid = [grid]
     cg = [copy.copy(model) for model in grid]
     for model in cg:
-        if all([model[key]==where[key] for key in where]):
+        if all([get(model,key)==where[key] for key in where]):
             for key in dictionary:
                 model[key] = dictionary[key]
     return cg
 
 
-def query(grid, select, where):
+def query(grid, select, where={}, group_by=[], reduction=lambda x:x, return_func=False, flatten_reductions=False):
+    if type(grid) is dict:
+        grid = [grid]
     ret = []
+    single_select = False
+    if type(group_by) is str:
+        group_by = [group_by]
+    if type(select) is str:
+        if select == "*":
+            get_keys = lambda model: list(model.keys())
+        else:
+            select = [select]
+            get_keys = lambda model: select
+            if not flatten_reductions:
+                single_select = True
+    else:
+        get_keys = lambda model: select
+    
+    if type(reduction) is dict:
+        red_d = reduction
+        reduction = lambda l: {key:red_d[key](l) for key in red_d}
+    
+    groups = []
+    def get_index(model):
+        for i, group in enumerate(groups):
+            if all([get(model,k)==group[k] for k in group_by]):
+                return i
+
+    def prepare(model):
+        model_group = {key:get(model,key) for key in group_by}
+        i = get_index(model)
+        if not i is None:
+            return i
+        
+        groups.append(model_group)
+        ret.append({key:[] for key in get_keys(model)})
+        return len(groups) -1
+
     for model in grid:
-        if all([model[key] == where[key] for key in where]):
-            ret += [copy.copy(get(model, select))]
-    return ret
+        if all([get(model,key) == where[key] for key in where]):
+            index = prepare(model)
+            for key in get_keys(model):
+                ret[index][key].append(get(model,key))
+    
+    ret = [{key: reduction(l) for key, l in group.items()} for group in ret]
+    if flatten_reductions:
+        for i,d in enumerate(ret):
+            
+            new_d = {}
+            for key in d:
+                if type(d[key]) is dict:
+                    for k in d[key]:
+                        new_d[key + "_" + k] = d[key][k]
+                else:
+                    new_d[key] = d[key]
+            ret[i] = new_d
+    
+    if single_select:
+        ret = [group[list(group.keys())[0]] for group in ret]
+    if group_by == []:
+        return ret[0]
+    if return_func:
+        return lambda group: ret[get_index(group)]
+    return groups, ret
+
+def reduce_keys(grid, keys, reduction, where=[], group_by=None):
+    if group_by is None:
+        if type(keys) is str:
+            group_by = [k for k in grid[0].keys() if not k == keys]
+        else:
+            group_by = [k for k in grid[0].keys() if not k in keys]
+        for data in grid:
+            for i, key in enumerate(group_by):
+                if not key in data:
+                    del group_by[i]
+    groups, q = query(grid, keys, where=where, group_by=group_by, reduction=reduction, return_func=False, flatten_reductions=True)
+    return [{**group,**qe} for group, qe in zip(groups, q)]
+
 
 def make_unique(grid):
     def try_to_serialize(value):

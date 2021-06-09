@@ -151,7 +151,7 @@ def universal_attack(
     count = 0
     input_shape = X.shape
     t0 = time.time()
-    pert_total = torch.zeros((1,) + X.shape[1:]).bool().to(device)
+    pert_total = torch.zeros((1,) + X.shape[1:]).bool().to(device) 
 
     # - Create a heat map
     pert_aggregated = torch.zeros(X.shape[1:]).float()
@@ -189,7 +189,9 @@ def universal_attack(
                 # - Update the current universal attack
                 pert_total = pert_total | torch.tensor(pert).to(device)
 
-        pert_total = heatmap_pruning(torch.squeeze(pert_total),heatmap=pert_aggregated, max_hamming_distance=max_hamming_distance)
+                # - Prune
+                pert_total = heatmap_pruning(torch.squeeze(pert_total),heatmap=pert_aggregated, max_hamming_distance=max_hamming_distance)
+        
         X_pert = X.clone()
         X_pert[:,pert_total] = 1. - X[:,pert_total]
         reset(net)
