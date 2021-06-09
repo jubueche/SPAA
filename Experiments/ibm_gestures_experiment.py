@@ -14,82 +14,36 @@ class ibm_gestures_experiment:
         grid = ibm_gestures_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
-        N_pgd = 50
-        N_MC = 5
-        eps = 1.5
-        eps_iter = 0.3
-        norm = 2
         max_hamming_distance = 500
         early_stopping = True
         boost = False
         verbose = True
         limit = 30
         lambda_ = 3.0
-        rand_minmax = 0.01
-        round_fn = "stoch_round"
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
+        step_size = 0.05
         max_iter_deep_fool = 50
+        n_attack_frames = 1
 
         grid = configure(
             grid,
             {
-                "N_pgd": N_pgd,
-                "N_MC": N_MC,
-                "eps": eps,
-                "eps_iter": eps_iter,
-                "norm": norm,
                 "max_hamming_distance": max_hamming_distance,
                 "boost": boost,
                 "early_stopping": early_stopping,
                 "lambda_": lambda_,
-                "round_fn": round_fn,
                 "verbose": verbose,
                 "limit": limit,
-                "rand_minmax": rand_minmax,
                 "max_iter":max_iter,
                 "epsilon":epsilon,
                 "overshoot":overshoot,
+                "n_attack_frames":n_attack_frames,
+                "step_size":step_size,
                 "max_iter_deep_fool":max_iter_deep_fool
             },
         )
-
-        # grid = run(
-        #     grid,
-        #     prob_fool_on_test_set,
-        #     n_threads=1,
-        #     store_key="prob_fool",
-        # )(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{N_MC}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        # )
-
-        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{round_fn}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        #     True,
-        # )
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",
@@ -98,6 +52,24 @@ class ibm_gestures_experiment:
             "{max_iter}",
             "{epsilon}",
             "{overshoot}",
+            "{step_size}",
+            "{max_iter_deep_fool}",
+            "{early_stopping}",
+            "{boost}",
+            "{verbose}",
+            "{limit}",
+            True, # - Use SNN
+        )
+
+        grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
+            "{*}",
+            "{max_hamming_distance}",
+            "{lambda_}",
+            "{max_iter}",
+            "{epsilon}",
+            "{overshoot}",
+            "{n_attack_frames}",
+            "{step_size}",
             "{max_iter_deep_fool}",
             "{early_stopping}",
             "{boost}",
@@ -115,7 +87,7 @@ class ibm_gestures_experiment:
             median_L0 = np.median(d["L0"][np.array(d["success"],dtype=bool) & network_correct])
             print("%.4f \t\t %.2f \t\t %.2f \t\t %.2f" % (sr,median_n_queries,mean_L0,median_L0))
 
-        attacks = ["sparse_fool","prob_fool","non_prob_fool"]
+        attacks = ["sparse_fool","frame_based_sparse_fool"]
 
         for attack in attacks:
             result_dict = query(grid, attack, where={"boost":False})

@@ -210,9 +210,8 @@ def universal_attack(
     return return_dict
 
 
-def universal_sparsefool(
+def frame_based_sparsefool(
     x_0,
-    y,
     net,
     max_hamming_distance,
     lb=0.0,
@@ -259,7 +258,7 @@ def universal_sparsefool(
     X_adv = x_0.clone()
     pert_total = torch.zeros((1,) + X_adv.shape[1:]).bool().to(device)
 
-    while label == pred_label and it < max_iter and pred_label == y:
+    while label == pred_label and it < max_iter:
 
         attack_frame = get_next_attack_frame(X_adv, n_attack_frames)
         n_queries += 1
@@ -296,17 +295,6 @@ def universal_sparsefool(
         X_adv[:,torch.squeeze(pert_total)] = 1. - x_0[:,torch.squeeze(pert_total)]
         assert ((X_adv == 0.0) | (X_adv ==1.0)).all(), "Non binary X_adv"
 
-        # plot_attacked_prob(
-        #     X_adv,
-        #     0,
-        #     net,
-        #     N_rows=2,
-        #     N_cols=2,
-        #     data=[(torch.clamp(torch.sum(X_adv.cpu(), 1), 0.0, 1.0),
-        #         return_dict_sparse_fool["predicted_attacked"], ) for _ in range(2 * 2)],
-        #     figname=2,
-        # )
-
         net.reset_states()
         label = torch.argmax(net.forward(Variable(X_adv, requires_grad=False)).data).item()
         n_queries += 1
@@ -317,7 +305,7 @@ def universal_sparsefool(
 
     t1 = time.time()
     return_dict = {}
-    return_dict["success"] = 1 if not (pred_label == label) or (pred_label != y) and L0 <= max_hamming_distance else 0
+    return_dict["success"] = 1 if not (pred_label == label) and L0 <= max_hamming_distance else 0
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = torch.reshape(X_adv, input_shape)
     return_dict["L0"] = L0

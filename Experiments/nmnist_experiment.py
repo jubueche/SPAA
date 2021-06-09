@@ -30,6 +30,7 @@ class nmnist_experiment:
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
+        step_size = 0.02
         max_iter_deep_fool = 50
 
         grid = configure(
@@ -51,6 +52,7 @@ class nmnist_experiment:
                 "max_iter":max_iter,
                 "epsilon":epsilon,
                 "overshoot":overshoot,
+                "step_size":step_size,
                 "max_iter_deep_fool":max_iter_deep_fool
             },
         )
@@ -98,6 +100,7 @@ class nmnist_experiment:
             "{max_iter}",
             "{epsilon}",
             "{overshoot}",
+            "{step_size}",
             "{max_iter_deep_fool}",
             "{early_stopping}",
             "{boost}",
