@@ -6,6 +6,7 @@ Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 - Install Sinabs ```pip install sinabs```
 - Install pytorch ```pip install torch```
 - Install aermanager ```pip install aermanager```
+- Install pygraphviz ```sudo apt-get install python-dev graphviz libgraphviz-dev pkg-config``` followed by ```pip install pygraphviz```
 
 ## Tutorial
 Start by executing ```python tutorial_NMNIST.py``` to see if everything works fine.
