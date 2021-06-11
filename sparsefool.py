@@ -143,8 +143,8 @@ class Heatmap:
                 pert = (return_dict_adv["X_adv"] != x_i_p)
                 pert_aggregated[pert] += 1.
 
-        plt.imshow(torch.sum(pert_aggregated, axis=[0,1]))
-        plt.show()
+        # plt.imshow(torch.sum(pert_aggregated, axis=[0,1]))
+        # plt.show()
 
         self.pert_aggregated = pert_aggregated
         self.max_hamming_distance = max_hamming_distance
@@ -226,6 +226,7 @@ def universal_attack(
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = torch.reshape(X_adv, input_shape)
     return_dict["pert_total"] = pert_total_best
+    return_dict["L0"] = float(pert_total_best.int().sum())
     return return_dict
 
 
