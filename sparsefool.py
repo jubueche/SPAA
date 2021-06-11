@@ -153,11 +153,26 @@ class Heatmap:
         return heatmap_pruning(torch.squeeze(pert_total),heatmap=self.pert_aggregated, max_hamming_distance=self.max_hamming_distance)
 
 class RandomEviction:
-    def __init__(self, X, y, max_hamming_distance):
+    def __init__(self, net, attack_fn, X, y, max_hamming_distance):
         self.max_hamming_distance = max_hamming_distance
     
     def evict(self, pert_total):
-        pass
+        pert_total = torch.squeeze(pert_total)
+
+        overshoot = pert_total.int().sum() - self.max_hamming_distance
+        if overshoot <= 0:
+            return pert_total
+        
+        
+        shape = pert_total.shape
+        unif = pert_total.float().reshape(-1)
+
+        idx = unif.multinomial(overshoot, replacement=False)
+
+        ret = pert_total.reshape(-1)
+        ret[idx] = False
+        return ret.reshape(shape)
+
 
 def universal_attack(
     X,
@@ -226,6 +241,7 @@ def universal_attack(
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = torch.reshape(X_adv, input_shape)
     return_dict["pert_total"] = pert_total_best
+    return_dict["L0"] = float(pert_total_best.int().sum())
     return return_dict
 
 
