@@ -98,6 +98,8 @@ def universal_attack_test_acc(
         ta = float(correct / num)
         return ta
 
+    return_dict_universal_attack.pop("X_adv")
+    
     return_dict = {
         "attacked_test_acc": get_test_acc(data_loader_test,return_dict_universal_attack["pert_total"]),
         "test_acc": get_test_acc(data_loader_test),
