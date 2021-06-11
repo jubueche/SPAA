@@ -4,7 +4,7 @@ Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 ## Setup
 - Install cleverhans using ```pip install git+https://github.com/cleverhans-lab/cleverhans.git#egg=cleverhans```
 - Install Sinabs ```pip install sinabs```
-- Install pytorch ```pip install torch```
+- Install pytorch ```pip install torch ujson gdown```
 - Install aermanager ```pip install aermanager```
 - Install pygraphviz ```sudo apt-get install python-dev graphviz libgraphviz-dev pkg-config``` followed by ```pip install pygraphviz```
 

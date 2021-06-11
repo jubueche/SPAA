@@ -61,8 +61,7 @@ if __name__ == "__main__":
             net=snn,
             attack_fn=attack_fn,
             max_hamming_distance=2000,
-            target_success_rate=0.5,
-            max_iter=10,
+            max_iter=1,
             device=device
         )
 

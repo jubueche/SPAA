@@ -5,25 +5,19 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
-from sparsefool import sparsefool, universal_attack, frame_based_sparsefool
+from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction
 import numpy as np
-# from torch.multiprocessing import Pool, set_start_method
-
-# try:
-#     set_start_method("spawn", force=True)
-# except RuntimeError:
-#     pass
 
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def get_data_loader_from_model(model, batch_size=1, max_size=10000):
+def get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000):
     if model['architecture'] == "NMNIST":
         if batch_size == -1:
             assert False, "The following needs to be tested:batch size -1"
             # batch_size = nmnist_dataloader.mnist_test_ds.__len__()
         nmnist_dataloader = NMNISTDataLoader()
-        data_loader = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = nmnist_dataloader.get_data_loader(dset=dset, mode="snn", shuffle=False, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "BMNIST":
         bmnist_dataloader = BMNISTDataLoader()
         if batch_size == -1:
@@ -31,13 +25,85 @@ def get_data_loader_from_model(model, batch_size=1, max_size=10000):
             batch_size = ds_len
             if ds_len > max_size:
                 batch_size = max_size
-        data_loader = bmnist_dataloader.get_data_loader(dset="test", shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = bmnist_dataloader.get_data_loader(dset=dset, shuffle=False, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "IBMGestures":
         ibm_gestures_dataloader = IBMGesturesDataLoader()
-        data_loader = ibm_gestures_dataloader.get_data_loader("test", shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = ibm_gestures_dataloader.get_data_loader(dset, shuffle=False, num_workers=4, batch_size=batch_size)
     else:
         assert model['architecture'] in ["NMNIST", "BMNIST"], "No other architecture added so far"
     return data_loader
+
+def get_even_batch(data_loader, num_samples, num_classes=11):
+    X = []; y = []
+    for i in range(num_classes):
+        c = 0
+        for X0,y0 in data_loader:
+            if c == num_samples: break
+            X0 = X0.float()
+            X0 = X0.to(device)
+            X0 = torch.clamp(X0, 0.0, 1.0)
+            y0 = y0.long().to(device)
+            if y0 == i:
+                c += 1
+                X.append(X0); y.append(y0)
+    X,y = torch.stack(X).squeeze(), torch.stack(y).squeeze()
+    rp = torch.randperm(X.shape[0])
+    return X[rp], y[rp]
+
+@cachable(dependencies=["model:{architecture}_session_id", "attack_fn_name", "num_samples", "max_hamming_distance", "max_iter", "eviction", "use_snn"])
+def universal_attack_test_acc(
+    model,
+    attack_fn,
+    attack_fn_name,
+    num_samples,
+    max_hamming_distance,
+    max_iter,
+    eviction,
+    use_snn
+):
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    data_loader = get_data_loader_from_model(model, batch_size=1, dset="train", max_size=10000)
+    X,y = get_even_batch(data_loader=data_loader, num_samples=num_samples, num_classes=11)
+
+    return_dict_universal_attack = universal_attack(
+            X=X,
+            y=y,
+            net=net,
+            attack_fn=attack_fn,
+            max_hamming_distance=max_hamming_distance,
+            max_iter=max_iter,
+            eviction=Heatmap if eviction == "Heatmap" else RandomEviction,
+            device=device
+        )
+
+    data_loader_test = get_data_loader_from_model(model, batch_size=32, dset="test", max_size=10000)
+    def get_test_acc(data_loader, pert_total=None):
+        correct = 0; num = 0
+        for idx, (X0, target) in enumerate(data_loader):
+            X0 = X0.float()
+            X0 = X0.to(device)
+            X0 = torch.clamp(X0, 0.0, 1.0)
+            if not pert_total is None:
+                X0[:,pert_total] = 1. - X0[:,pert_total]
+            target = target.long().to(device)
+            net.reset_states()
+            out = net.forward(X0)
+            _, predict = torch.max(out, 1)
+            correct += torch.sum((predict == target).float())
+            num += X0.shape[0]
+        ta = float(correct / num)
+        return ta
+
+    return_dict = {
+        "attacked_test_acc": get_test_acc(data_loader_test,return_dict_universal_attack["pert_total"]),
+        "test_acc": get_test_acc(data_loader_test),
+        **return_dict_universal_attack}
+
+    return return_dict
 
 
 @cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])

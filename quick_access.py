@@ -7,7 +7,8 @@ from Experiments import (
     visual_nmnist_experiment,
     visual_bmnist_experiment,
     sparse_fool_num_frames_experiment,
-    label_graph_experiment
+    label_graph_experiment,
+    universal_attack_experiment
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize()
@@ -18,4 +19,5 @@ from Experiments import (
 # visual_nmnist_experiment.visual_nmnist_experiment.visualize()
 # visual_bmnist_experiment.visual_bmnist_experiment.visualize()
 # sparse_fool_num_frames_experiment.sparse_fool_num_frames_experiment.visualize()
-label_graph_experiment.label_graph_experiment.visualize()
+# label_graph_experiment.label_graph_experiment.visualize()
+universal_attack_experiment.universal_attack_experiment.visualize()

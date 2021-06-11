@@ -130,6 +130,34 @@ def heatmap_pruning(
     
     return pert_projected
 
+class Heatmap:
+    def __init__(self, net, attack_fn, X, y, max_hamming_distance):
+        pert_aggregated = torch.zeros(X.shape[1:]).float()
+        for idx, (x_i,y_i) in enumerate(zip(X,y)):
+            # - Apply current universal perturbation
+            x_i_p = x_i.clone()
+            reset(net)
+            pred_label = torch.argmax(net.forward(Variable(x_i_p, requires_grad=False)).data).item()
+            if pred_label == y_i:
+                return_dict_adv = attack_fn(x_i_p,y_i)
+                pert = (return_dict_adv["X_adv"] != x_i_p)
+                pert_aggregated[pert] += 1.
+
+        plt.imshow(torch.sum(pert_aggregated, axis=[0,1]))
+        plt.show()
+
+        self.pert_aggregated = pert_aggregated
+        self.max_hamming_distance = max_hamming_distance
+    
+    def evict(self, pert_total):
+        return heatmap_pruning(torch.squeeze(pert_total),heatmap=self.pert_aggregated, max_hamming_distance=self.max_hamming_distance)
+
+class RandomEviction:
+    def __init__(self, X, y, max_hamming_distance):
+        self.max_hamming_distance = max_hamming_distance
+    
+    def evict(self, pert_total):
+        pass
 
 def universal_attack(
     X,
@@ -137,8 +165,8 @@ def universal_attack(
     net,
     attack_fn,
     max_hamming_distance,
-    target_success_rate,
     max_iter,
+    eviction=Heatmap,
     device="gpu"
 ):
     """
@@ -151,28 +179,13 @@ def universal_attack(
     count = 0
     input_shape = X.shape
     t0 = time.time()
-    pert_total = torch.zeros((1,) + X.shape[1:]).bool().to(device) 
+    pert_total = torch.zeros((1,) + X.shape[1:]).bool().to(device)
+    pert_total_best = pert_total.clone()
+    best_success_rate = 0.0
 
-    # - Create a heat map
-    pert_aggregated = torch.zeros(X.shape[1:]).float()
-    for idx, (x_i,y_i) in enumerate(zip(X,y)):
-        # - Apply current universal perturbation
-        x_i_p = x_i.clone()
-        reset(net)
-        pred_label = torch.argmax(net.forward(Variable(x_i_p, requires_grad=False)).data).item()
-        if pred_label == y_i:
-            return_dict_adv = attack_fn(x_i_p,y_i)
-            pert = (return_dict_adv["X_adv"] != x_i_p)
-            pert_aggregated[pert] += 1.
+    proj = eviction(net, attack_fn, X, y, max_hamming_distance)
 
-        if idx > 5: break
-
-    plt.imshow(torch.sum(pert_aggregated, axis=[0,1]))
-    plt.show()
-
-    # plot_attacked_prob(pert_aggregated,0,net,N_rows=2,N_cols=2,data=4*[(torch.sum(pert_aggregated, axis=1),0)])
-
-    while count < max_iter and success_rate < target_success_rate:
+    while count < max_iter:
 
         for idx, (x_i,y_i) in enumerate(zip(X,y)):
             # - Apply current universal perturbation
@@ -190,7 +203,7 @@ def universal_attack(
                 pert_total = pert_total | torch.tensor(pert).to(device)
 
                 # - Prune
-                pert_total = heatmap_pruning(torch.squeeze(pert_total),heatmap=pert_aggregated, max_hamming_distance=max_hamming_distance)
+                pert_total = proj.evict(pert_total)
         
         X_pert = X.clone()
         X_pert[:,pert_total] = 1. - X[:,pert_total]
@@ -198,17 +211,21 @@ def universal_attack(
         pred_X_pert = torch.argmax(net.forward(X_pert), dim=1)
         success_rate = torch.mean((pred_X_pert != y).float())
         print(f"Success rate {success_rate}")
+        if success_rate > best_success_rate:
+            best_success_rate = success_rate
+            pert_total_best = pert_total.clone()
         count += 1
 
     t1 = time.time()
     X_adv = X.clone()
-    X_adv[:,pert_total] = 1. - X[:,pert_total]
+    X_adv[:,pert_total_best] = 1. - X[:,pert_total_best]
     return_dict = {}
     return_dict["predicted"] = torch.argmax(net.forward(X), dim=1)
     return_dict["predicted_attacked"] = torch.argmax(net.forward(X_adv), dim=1)
     return_dict["success_rate"] = success_rate
     return_dict["elapsed_time"] = t1-t0
     return_dict["X_adv"] = torch.reshape(X_adv, input_shape)
+    return_dict["pert_total"] = pert_total_best
     return return_dict
 
 
