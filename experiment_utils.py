@@ -11,6 +11,9 @@ import numpy as np
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+# - Set a global seed
+torch.manual_seed(0)
+
 def get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000):
     if model['architecture'] == "NMNIST":
         if batch_size == -1:
@@ -50,6 +53,49 @@ def get_even_batch(data_loader, num_samples, num_classes=11):
     rp = torch.randperm(X.shape[0])
     return X[rp], y[rp]
 
+def get_test_acc(data_loader, net, pert_total=None):
+    correct = 0; num = 0
+    for idx, (X0, target) in enumerate(data_loader):
+        X0 = X0.float()
+        X0 = X0.to(device)
+        X0 = torch.clamp(X0, 0.0, 1.0)
+        if not pert_total is None:
+            X0[:,pert_total] = 1. - X0[:,pert_total]
+        target = target.long().to(device)
+        net.reset_states()
+        out = net.forward(X0)
+        _, predict = torch.max(out, 1)
+        correct += torch.sum((predict == target).float())
+        num += X0.shape[0]
+    ta = float(correct / num)
+    return ta
+
+@cachable(dependencies=["model:{architecture}_session_id", "max_hamming_distance", "use_snn"])
+def random_universal_test_acc(
+    model,
+    max_hamming_distance,
+    use_snn
+):
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    data_loader_test = get_data_loader_from_model(model, batch_size=32, dset="test", max_size=10000)
+
+    shape = data_loader_test.dataset.__getitem__(0)[0].shape
+    indices = np.indices(shape).reshape((len(shape),-1))[:,torch.randperm(np.prod(shape))][:,:max_hamming_distance]
+    random_pert_total = torch.zeros(shape).bool()
+    random_pert_total[indices] = True
+
+    return_dict = {
+        "attacked_test_acc": get_test_acc(data_loader_test, net, random_pert_total),
+        "test_acc": get_test_acc(data_loader_test, net),
+        "pert_total": random_pert_total,
+        "L0":max_hamming_distance}
+
+    return return_dict
+
 @cachable(dependencies=["model:{architecture}_session_id", "attack_fn_name", "num_samples", "max_hamming_distance", "max_iter", "eviction", "use_snn"])
 def universal_attack_test_acc(
     model,
@@ -81,28 +127,12 @@ def universal_attack_test_acc(
         )
 
     data_loader_test = get_data_loader_from_model(model, batch_size=32, dset="test", max_size=10000)
-    def get_test_acc(data_loader, pert_total=None):
-        correct = 0; num = 0
-        for idx, (X0, target) in enumerate(data_loader):
-            X0 = X0.float()
-            X0 = X0.to(device)
-            X0 = torch.clamp(X0, 0.0, 1.0)
-            if not pert_total is None:
-                X0[:,pert_total] = 1. - X0[:,pert_total]
-            target = target.long().to(device)
-            net.reset_states()
-            out = net.forward(X0)
-            _, predict = torch.max(out, 1)
-            correct += torch.sum((predict == target).float())
-            num += X0.shape[0]
-        ta = float(correct / num)
-        return ta
 
     return_dict_universal_attack.pop("X_adv")
     
     return_dict = {
-        "attacked_test_acc": get_test_acc(data_loader_test,return_dict_universal_attack["pert_total"]),
-        "test_acc": get_test_acc(data_loader_test),
+        "attacked_test_acc": get_test_acc(data_loader_test, net, return_dict_universal_attack["pert_total"]),
+        "test_acc": get_test_acc(data_loader_test, net),
         **return_dict_universal_attack}
 
     return return_dict

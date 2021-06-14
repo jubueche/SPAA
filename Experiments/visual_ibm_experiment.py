@@ -48,10 +48,10 @@ def generate_sample(attack_fn, data_loader, source_label, target_label, num, cla
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
-        if class_labels[target] in source_label and not (class_labels[target] in got_set):
+        if class_labels[target] in source_label and not (class_labels[target] in got_set) :
             return_dict = attack_fn(X0)
             return_dict["X0"] = X0
-            if class_labels[return_dict["predicted_attacked"]] in target_label and return_dict["predicted"]==target:
+            if class_labels[return_dict["predicted_attacked"]] in target_label and return_dict["predicted"]==target and return_dict["predicted"]!=return_dict["predicted_attacked"]:
                 results.append(return_dict)
                 got_set.add(class_labels[target])
     

@@ -45,7 +45,7 @@ class universal_attack_experiment:
                     boost=False,
                     verbose=True,
                 )
-            elif attack_fn_name == "sparse_fool":
+            elif attack_fn_name == "sparsefool":
                 return sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
