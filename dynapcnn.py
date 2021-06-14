@@ -28,9 +28,10 @@ def spiketrain_forward(spk):
 
 
 def attack_on_spiketrain(spk):
+    dt = 10000
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
-        spiketrain, dt=10000, bins_x=np.arange(129), bins_y=np.arange(129))
+        spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
     # note that to do this we are forced to suppress many spikes
     print("Spikes before binarization:", raster.sum())
     raster = torch.clamp(torch.tensor(raster), 0., 1.)
@@ -56,7 +57,11 @@ def attack_on_spiketrain(spk):
 
     # now we only look at where spikes were ADDED (heuristically!)
     added_to_raster = attacked_raster > raster
-    breakpoint()
+    t, p, x, y = np.where(added_to_raster)
+    t_microsec = spiketrain['t'][0] + dt * int(t + 0.5)
+    # TODO make these into structured array
+    # TODO add to spiketrain structured array
+    # TODO re-sort and return
     return spk
 
 
@@ -162,7 +167,7 @@ hardware_compatible_model.to(
 correct = 0
 correct_sinabs = 0
 for i, (spiketrain, label) in enumerate(data_loader_test):
-    # attack_on_spiketrain(spiketrain)
+    attack_on_spiketrain(spiketrain)
     # resetting states
     hardware_compatible_model.samna_device.get_model().apply_configuration(config)
     # forward pass on the chip
