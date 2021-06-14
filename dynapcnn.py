@@ -7,9 +7,11 @@ import numpy as np
 from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
 from aermanager.preprocess import create_raster_from_xytp
+from sinabs.layers import SpikingLayer
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
+from sparsefool import frame_based_sparsefool
 
 
 def spiketrain_forward(spk):
@@ -25,8 +27,41 @@ def spiketrain_forward(spk):
     return most_active_neuron
 
 
+def attack_on_spiketrain(spk):
+    # first, we need to rasterize the spiketrain
+    raster = create_raster_from_xytp(
+        spiketrain, dt=10000, bins_x=np.arange(129), bins_y=np.arange(129))
+    # note that to do this we are forced to suppress many spikes
+    print("Spikes before binarization:", raster.sum())
+    raster = torch.clamp(torch.tensor(raster), 0., 1.)
+    print("Spikes after binarization:", raster.sum())
+
+    # performing the actual attack
+    return_dict_sparse_fool = frame_based_sparsefool(
+        x_0=raster,
+        # y=target,
+        net=snn,
+        max_hamming_distance=np.inf,
+        lambda_=1.0,
+        epsilon=0.0,
+        overshoot=0.02,
+        n_attack_frames=3,
+        step_size=0.05,
+        device="cpu",
+        early_stopping=False,
+        boost=False,
+        verbose=True,
+    )
+    attacked_raster = return_dict_sparse_fool["X_adv"]
+
+    # now we only look at where spikes were ADDED (heuristically!)
+    added_to_raster = attacked_raster > raster
+    breakpoint()
+    return spk
+
+
 class GestureClassifier(nn.Module):
-    def __init__(self):
+    def __init__(self, file):
         super().__init__()
 
         self.seq = nn.Sequential(
@@ -66,9 +101,36 @@ class GestureClassifier(nn.Module):
             nn.ReLU(),
             # nn.Flatten(),  # otherwise torch complains
         )
+        self.load_state_dict(torch.load(file))
+        self.model = from_model(self.seq).spiking_model
 
     def forward(self, x):
-        return self.seq(x)
+        out = self.forward_raw(x)
+        out = torch.sum(out, dim=1)
+        return out
+
+    def forward_raw(self, x):
+        if x.ndim == 4:
+            x = torch.reshape(x, (1,) + x.shape)
+        (batch_size, t_len, channel, height, width) = x.shape
+
+        # - Set the batch size in the spiking layer
+        self.set_batch_size(batch_size)
+
+        x = x.reshape((batch_size * t_len, channel, height, width))
+        out = self.model(x)
+        out = out.reshape(batch_size, t_len, 11)
+        return out
+
+    def set_batch_size(self, batch_size):
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.batch_size = batch_size
+
+    def reset_states(self):
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.reset_states(randomize=False)
 
 
 # - Dataloader of spiketrains (not rasters!)
@@ -79,12 +141,10 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-specknet_ann = GestureClassifier()
-specknet_ann.load_state_dict(torch.load(("data/Gestures/Gestures_SpeckNetA_framebased.pth")))
-snn = from_model(specknet_ann)
+snn = GestureClassifier("data/Gestures/Gestures_SpeckNetA_framebased.pth")
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
-    snn,
+    snn.model,
     discretize=True,
     input_shape=input_shape,
 )
@@ -102,6 +162,7 @@ hardware_compatible_model.to(
 correct = 0
 correct_sinabs = 0
 for i, (spiketrain, label) in enumerate(data_loader_test):
+    # attack_on_spiketrain(spiketrain)
     # resetting states
     hardware_compatible_model.samna_device.get_model().apply_configuration(config)
     # forward pass on the chip
@@ -111,7 +172,7 @@ for i, (spiketrain, label) in enumerate(data_loader_test):
     raster = create_raster_from_xytp(
         spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
     snn.reset_states()
-    out_sinabs = snn(torch.tensor(raster)).squeeze().sum(0)
+    out_sinabs = snn.model(torch.tensor(raster)).squeeze().sum(0)
     out_label_sinabs = torch.argmax(out_sinabs).item()
     print("N. spikes from sinabs:", out_sinabs.sum())
 
