@@ -1,18 +1,15 @@
 import torch
-from torch import nn
-from sinabs.from_torch import from_model
 import numpy as np
 
 # software to interact with dynapcnn
 from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
 from aermanager.preprocess import create_raster_from_xytp
-from sinabs.layers import SpikingLayer
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import frame_based_sparsefool
-from networks import SpeckNetA_Gestures
+from networks import GestureClassifierSmall
 
 
 def spiketrain_forward(spk):
@@ -59,14 +56,13 @@ def attack_on_spiketrain(spk):
     # now we only look at where spikes were ADDED (heuristically!)
     added_to_raster = attacked_raster > raster
     t, p, x, y = np.where(added_to_raster)
+
+    # we adapt and add them to the spiketrain
     t_microsec = spiketrain['t'][0] + dt * int(t + 0.5)
     # TODO make these into structured array
     # TODO add to spiketrain structured array
     # TODO re-sort and return
     return spk
-
-
-
 
 
 # - Dataloader of spiketrains (not rasters!)
@@ -77,7 +73,7 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-snn = SpeckNetA_Gestures("data/Gestures/Gestures_SpeckNetA_framebased.pth")
+snn = GestureClassifierSmall()
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
     snn.model,

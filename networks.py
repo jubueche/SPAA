@@ -86,30 +86,7 @@ class SummedSNN(SinabsNetwork):
         return X
 
 
-class IBMGesturesBPTT(nn.Module):
-    def __init__(self):
-        super().__init__()
-        specknet_ann = nn.Sequential(
-            nn.Conv2d(2, 8, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),  # 8, 64, 64
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2)),  # 8,32,32
-            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 16, 32, 32
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2)),  # 16, 16, 16
-            nn.Dropout2d(0.5),
-            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 8, 16, 16
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2)),  # 8x8x8
-            nn.Flatten(),
-            nn.Linear(8 * 8 * 8, 64, bias=False),
-            nn.ReLU(),
-            nn.Linear(64, 11, bias=False),
-        )
-        self.model = from_model(specknet_ann, threshold=1).spiking_model
-
+class AbstractGestureClassifier(nn.Module):
     def forward(self, x):
         out = self.forward_raw(x)
         out = torch.sum(out, dim=1)
@@ -139,8 +116,33 @@ class IBMGesturesBPTT(nn.Module):
                 lyr.reset_states(randomize=False)
 
 
-class SpeckNetA_Gestures(nn.Module):
-    def __init__(self, file):
+class IBMGesturesBPTT(AbstractGestureClassifier):
+    def __init__(self):
+        super().__init__()
+        specknet_ann = nn.Sequential(
+            nn.Conv2d(2, 8, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),  # 8, 64, 64
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8,32,32
+            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 16, 32, 32
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 16, 16, 16
+            nn.Dropout2d(0.5),
+            nn.Conv2d(8, 8, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),  # 8, 16, 16
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8x8x8
+            nn.Flatten(),
+            nn.Linear(8 * 8 * 8, 64, bias=False),
+            nn.ReLU(),
+            nn.Linear(64, 11, bias=False),
+        )
+        self.model = from_model(specknet_ann, threshold=1).spiking_model
+
+
+class SpeckNetA_Gestures(AbstractGestureClassifier):
+    def __init__(self, file="data/Gestures/Gestures_SpeckNetA_framebased.pth"):
         super().__init__()
 
         self.seq = nn.Sequential(
@@ -183,33 +185,43 @@ class SpeckNetA_Gestures(nn.Module):
         self.load_state_dict(torch.load(file))
         self.model = from_model(self.seq).spiking_model
 
-    def forward(self, x):
-        out = self.forward_raw(x)
-        out = torch.sum(out, dim=1)
-        return out
 
-    def forward_raw(self, x):
-        if x.ndim == 4:
-            x = torch.reshape(x, (1,) + x.shape)
-        (batch_size, t_len, channel, height, width) = x.shape
+class GestureClassifierSmall(AbstractGestureClassifier):
+    def __init__(self, file="data/Gestures/Gestures_Small_BPTT.pth"):
+        super().__init__()
 
-        # - Set the batch size in the spiking layer
-        self.set_batch_size(batch_size)
+        self.seq = nn.Sequential(
+            # Core 0
+            # nn.AvgPool2d(kernel_size=(2,2)), # 2 ,32 , 32
+            nn.Conv2d(2, 8, kernel_size=(2, 2), stride=(2, 2),
+                      padding=(0, 0), bias=False),  # 8, 64, 64
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8,32,32
+            # """Core 1"""
+            # nn.Dropout2d(0.5),
+            nn.Conv2d(8, 16, kernel_size=(3, 3), stride=(1, 1),
+                      padding=(1, 1), bias=False),  # 16, 32, 32
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 16, 16, 16
+            # """Core 2"""
+            nn.Dropout2d(0.5),
+            nn.Conv2d(16, 8, kernel_size=(3, 3), stride=(1, 1),
+                      padding=(1, 1), bias=False),  # 8, 16, 16
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=(2, 2)),  # 8x8x8
 
-        x = x.reshape((batch_size * t_len, channel, height, width))
-        out = self.model(x)
-        out = out.reshape(batch_size, t_len, 11)
-        return out
+            nn.Flatten(),
+            nn.Dropout2d(0.5),
+            nn.Linear(8 * 8 * 8, 11, bias=False),
+            nn.ReLU()
+        )
+        self.model = from_model(self.seq).spiking_model
+        stat_dic = torch.load(file)
+        self.model.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"] * 4)
+        self.model.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
+        self.model.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])
+        self.model.state_dict()["12.weight"][:] = nn.Parameter(stat_dic["model.12.weight"])
 
-    def set_batch_size(self, batch_size):
-        for lyr in self.model:
-            if isinstance(lyr, SpikingLayer):
-                lyr.batch_size = batch_size
-
-    def reset_states(self):
-        for lyr in self.model:
-            if isinstance(lyr, SpikingLayer):
-                lyr.reset_states(randomize=False)
 
 
 def get_ann_arch():
