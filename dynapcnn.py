@@ -12,6 +12,7 @@ from sinabs.layers import SpikingLayer
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import frame_based_sparsefool
+from networks import SpeckNetA_Gestures
 
 
 def spiketrain_forward(spk):
@@ -65,77 +66,7 @@ def attack_on_spiketrain(spk):
     return spk
 
 
-class GestureClassifier(nn.Module):
-    def __init__(self, file):
-        super().__init__()
 
-        self.seq = nn.Sequential(
-            # core 0
-            nn.Conv2d(2, 16, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 1
-            nn.Conv2d(16, 16, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 2
-            nn.Conv2d(16, 32, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 7
-            nn.Conv2d(32, 32, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 4
-            nn.Conv2d(32, 64, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 5
-            nn.Conv2d(64, 64, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 6
-            nn.Dropout2d(0.5),
-            nn.Conv2d(64, 256, kernel_size=(2, 2), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 3
-            nn.Dropout2d(0.5),
-            nn.Conv2d(256, 128, kernel_size=(1, 1), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 8
-            nn.Conv2d(128, 11, kernel_size=(1, 1), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # nn.Flatten(),  # otherwise torch complains
-        )
-        self.load_state_dict(torch.load(file))
-        self.model = from_model(self.seq).spiking_model
-
-    def forward(self, x):
-        out = self.forward_raw(x)
-        out = torch.sum(out, dim=1)
-        return out
-
-    def forward_raw(self, x):
-        if x.ndim == 4:
-            x = torch.reshape(x, (1,) + x.shape)
-        (batch_size, t_len, channel, height, width) = x.shape
-
-        # - Set the batch size in the spiking layer
-        self.set_batch_size(batch_size)
-
-        x = x.reshape((batch_size * t_len, channel, height, width))
-        out = self.model(x)
-        out = out.reshape(batch_size, t_len, 11)
-        return out
-
-    def set_batch_size(self, batch_size):
-        for lyr in self.model:
-            if isinstance(lyr, SpikingLayer):
-                lyr.batch_size = batch_size
-
-    def reset_states(self):
-        for lyr in self.model:
-            if isinstance(lyr, SpikingLayer):
-                lyr.reset_states(randomize=False)
 
 
 # - Dataloader of spiketrains (not rasters!)
@@ -146,7 +77,7 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-snn = GestureClassifier("data/Gestures/Gestures_SpeckNetA_framebased.pth")
+snn = SpeckNetA_Gestures("data/Gestures/Gestures_SpeckNetA_framebased.pth")
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
     snn.model,
