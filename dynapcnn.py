@@ -41,7 +41,7 @@ def attack_on_spiketrain(spk):
         # y=target,
         net=snn,
         max_hamming_distance=np.inf,
-        lambda_=1.0,
+        lambda_=3.0,
         epsilon=0.0,
         overshoot=0.02,
         n_attack_frames=3,
@@ -62,6 +62,7 @@ def attack_on_spiketrain(spk):
     # TODO make these into structured array
     # TODO add to spiketrain structured array
     # TODO re-sort and return
+    raise NotImplementedError()
     return spk
 
 
@@ -95,8 +96,8 @@ hardware_compatible_model.to(
 
 correct = 0
 correct_sinabs = 0
+attacks_successful = 0
 for i, (spiketrain, label) in enumerate(data_loader_test):
-    # attack_on_spiketrain(spiketrain)
     # resetting states
     hardware_compatible_model.samna_device.get_model().apply_configuration(config)
     # forward pass on the chip
@@ -113,8 +114,16 @@ for i, (spiketrain, label) in enumerate(data_loader_test):
     print("Ground truth:", label, "chip:", out_label, "sinabs:", out_label_sinabs)
     if out_label == label:
         correct += 1
-    if out_label_sinabs == label:
-        correct_sinabs += 1
+        # attacked_spk = attack_on_spiketrain(spiketrain)
+        # # resetting states
+        # hardware_compatible_model.samna_device.get_model().apply_configuration(config)
+        # # forward pass on the chip
+        # out_label_attacked = spiketrain_forward(attacked_spk)
+        # attacks_successful += out_label_attacked != out_label
+        # print(f"Attack; successful? {out_label_attacked != out_label} "
+        #       f"(new label: {out_label_attacked})")
+
+    correct_sinabs += out_label_sinabs == label
 
     if i > 100:
         break
