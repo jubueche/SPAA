@@ -13,9 +13,9 @@ from networks import GestureClassifierSmall
 
 
 def spiketrain_forward(spk):
-    input_events = io.xytp_to_events(spiketrain, layer=0, device="dynapcnndevkit:0")
+    input_events = io.xytp_to_events(spiketrain, layer=layers_ordering[0], device="dynapcnndevkit:0")
     evs_out = hardware_compatible_model(input_events)
-    evs_out = io.events_to_xytp(evs_out, layer=8)
+    evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
     print("N. spikes from chip:", len(evs_out))
 
     if len(evs_out) == 0:
@@ -82,19 +82,21 @@ hardware_compatible_model = DynapcnnCompatibleNetwork(
 )
 
 # - Apply model to device
+# layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
+layers_ordering = [0, 1, 2, 3]
 config = hardware_compatible_model.make_config(
-    [0, 1, 2, 7, 4, 5, 6, 3, 8], monitor_layers=[8])
+    layers_ordering, monitor_layers=[layers_ordering[-1]])
 hardware_compatible_model.to(
     device="dynapcnndevkit:0",
-    chip_layers_ordering=[0, 1, 2, 7, 4, 5, 6, 3, 8],
-    monitor_layers=[8],
+    chip_layers_ordering=layers_ordering,
+    monitor_layers=[layers_ordering[-1]],
 )
 
 
 correct = 0
 correct_sinabs = 0
 for i, (spiketrain, label) in enumerate(data_loader_test):
-    attack_on_spiketrain(spiketrain)
+    # attack_on_spiketrain(spiketrain)
     # resetting states
     hardware_compatible_model.samna_device.get_model().apply_configuration(config)
     # forward pass on the chip
