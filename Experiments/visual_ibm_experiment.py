@@ -5,14 +5,6 @@ from datajuicer import run, split, configure, query, run, reduce_keys
 from experiment_utils import *
 import numpy as np
 import matplotlib as mpl
-mpl.rcParams['axes.spines.top'] = False
-mpl.rcParams['axes.spines.bottom'] = False
-mpl.rcParams['axes.spines.left'] = False
-mpl.rcParams['axes.spines.right'] = False
-mpl.rcParams['xtick.bottom'] = False
-mpl.rcParams['ytick.left'] = False
-mpl.rcParams['xtick.labelbottom'] = False
-mpl.rcParams['ytick.labelleft'] = False
 import matplotlib.pyplot as plt
 
 class_labels = [
@@ -98,14 +90,13 @@ class visual_ibm_experiment:
                                                                 batch_size=1)
 
         max_hamming_distance = 1000
-        lambda_ = 3.0
+        lambda_ = 1.0
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
         max_iter_deep_fool = 50
-        n_attack_frames = 1
-
+        
         def attack_fn(X0):
             d = sparsefool(
                 x_0=X0,
@@ -142,10 +133,25 @@ class visual_ibm_experiment:
         fig = plt.figure(constrained_layout=True, figsize=(10,6))
         spec = mpl.gridspec.GridSpec(ncols=N_cols, nrows=N_rows, figure=fig)
         axes = [fig.add_subplot(spec[i,j]) for i in range(N_rows) for j in range(N_cols)]
+
+        for ax in axes:
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.tick_params(axis='both',
+                            which='both',
+                            bottom=False,
+                            top=False,
+                            labelbottom=False,
+                            right=False,
+                            left=False,
+                            labelleft=False)
+
         sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_ibm_gestures.pdf")
-        plt.show()
+        plt.show(block=False)
 
         

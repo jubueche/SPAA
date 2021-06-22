@@ -46,6 +46,7 @@ if __name__ == "__main__":
     epochs = FLAGS.epochs
 
     if not FLAGS.boundary_loss == "None":
+        print(FLAGS.boundary_loss)
         assert FLAGS.boundary_loss in ["trades","madry"], "Unknown boundary loss"
 
     ibm_gesture_dataloader = IBMGesturesDataLoader()

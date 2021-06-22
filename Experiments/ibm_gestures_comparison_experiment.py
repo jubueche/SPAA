@@ -16,11 +16,11 @@ class ibm_gestures_comparison_experiment:
         grid = ibm_gestures_comparison_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
-        max_hamming_distance = 1000
+        max_hamming_distance = 2000
         early_stopping = True
         boost = False
         verbose = True
-        limit = 30
+        limit = 1000
         lambda_ = 3.0
         max_iter = 20
         epsilon = 0.0

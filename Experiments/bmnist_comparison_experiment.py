@@ -59,7 +59,7 @@ class bmnist_comparison_experiment:
         early_stopping = True
         boost = False
         verbose = True
-        limit = 20
+        limit = 1000
         lambda_ = 2.0
         rand_minmax = 0.01
         round_fn = "stoch_round"

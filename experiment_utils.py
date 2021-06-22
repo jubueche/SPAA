@@ -9,7 +9,8 @@ from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Hea
 import numpy as np
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 
 # - Set a global seed
 torch.manual_seed(0)
@@ -81,7 +82,7 @@ def random_universal_test_acc(
     else:
         net = model["ann"]
 
-    data_loader_test = get_data_loader_from_model(model, batch_size=32, dset="test", max_size=10000)
+    data_loader_test = get_data_loader_from_model(model, batch_size=6, dset="test", max_size=10000)
 
     shape = data_loader_test.dataset.__getitem__(0)[0].shape
     indices = np.indices(shape).reshape((len(shape),-1))[:,torch.randperm(np.prod(shape))][:,:max_hamming_distance]
@@ -126,7 +127,7 @@ def universal_attack_test_acc(
             device=device
         )
 
-    data_loader_test = get_data_loader_from_model(model, batch_size=32, dset="test", max_size=10000)
+    data_loader_test = get_data_loader_from_model(model, batch_size=8, dset="test", max_size=10000)
 
     return_dict_universal_attack.pop("X_adv")
     
@@ -333,7 +334,7 @@ def scar_attack_on_test_set(
 
 
 def evaluate_on_test_set(model, limit, attack_fn):
-    data_loader = get_data_loader_from_model(model, batch_size=limit, max_size=10000)
+    data_loader = get_data_loader_from_model(model, batch_size=50, max_size=50)
     N_count = 0
 
     ret = {}
@@ -372,7 +373,7 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
 
-        with ThreadPoolExecutor(max_workers=1) as executor: #! change to None
+        with ThreadPoolExecutor(max_workers=1) as executor: 
             parallel_results = []
             futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):

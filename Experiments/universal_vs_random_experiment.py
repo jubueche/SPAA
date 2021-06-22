@@ -16,19 +16,19 @@ class universal_vs_random_experiment:
         grid = universal_vs_random_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
-        lambda_ = 3.0
-        max_iter = 1 # - Max iter for universal attack (# rounds through batch)
+        lambda_ = 2.0
+        max_iter = 3 # - Max iter for universal attack (# rounds through batch)
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
         max_iter_deep_fool = 50
         n_attack_frames = 1
-        max_iter = 1
+        max_iter = 3
         use_snn = True
-        attack_fn_name = "frame_based_sparsefool"
-        num_samples = 2 # - Number of samples per class label
+        attack_fn_name = "sparsefool"
+        num_samples = 8 # - Number of samples per class label
 
-        max_hamming_distances = [2000,3000]
+        max_hamming_distances = [500,750,1000,2000]
 
         def attack_fn(X,y):
             if attack_fn_name == "frame_based_sparsefool":
@@ -50,7 +50,7 @@ class universal_vs_random_experiment:
                 return sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
-                    max_hamming_distance=1000,
+                    max_hamming_distance=5000,
                     lambda_=lambda_,
                     device=device,
                     epsilon=epsilon,

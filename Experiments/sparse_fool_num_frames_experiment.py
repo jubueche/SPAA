@@ -5,6 +5,7 @@ import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
 import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['axes.spines.top'] = False
 import matplotlib.pyplot as plt
 
@@ -25,7 +26,7 @@ class sparse_fool_num_frames_experiment:
             "early_stopping": True,
             "lambda_": 3.0,
             "verbose": True,
-            "limit": 30,
+            "limit": 1000,
             "max_iter":20,
             "epsilon":0.0,
             "overshoot":0.02,
@@ -68,12 +69,14 @@ class sparse_fool_num_frames_experiment:
                 ax.set_xticks(np.arange(0.0,len(num_frames),1.0))
                 ax.set_xticklabels(num_frames)
                 ax.set_xlabel("Num. frames")
+                ax.spines["top"].set_visible(False)
                 success_rate = table.get_val(i0,0)
                 median_L0 = table.get_val(i0,1)
                 ax.set_title(label)
                 ax.plot(success_rate, color="b")
                 ax.tick_params(axis='y', labelcolor="b")
                 ax_twin = ax.twinx()
+                ax_twin.spines["top"].set_visible(False)
                 ax_twin.plot(median_L0, color="r", linestyle="dashed")
                 ax_twin.tick_params(axis='y', labelcolor="r")
                 ax_twin.set_ylabel("Median L0")
@@ -87,4 +90,4 @@ class sparse_fool_num_frames_experiment:
         axes_dict = {"IBMGestures":axes[0]}
         plot(grid, independent_keys=independent_keys,dependent_keys=dependent_keys,label_dict=label_dict, axes_dict=axes_dict)
         plt.savefig("Resources/Figures/vary_num_frames.pdf", dpi=1200)
-        plt.show()
+        plt.show(block=False)

@@ -4,6 +4,8 @@ from experiment_utils import *
 import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
+import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 plt.rcParams["figure.figsize"] = (12,5)
 import networkx as nx
@@ -19,14 +21,29 @@ class label_graph_experiment:
 
     @staticmethod
     def visualize():
+
+        class_labels = [
+            "Hand Clap",
+            "RH Wave",
+            "LH Wave",
+            "RH Clock.",
+            "RH Counter\nClockw.",
+            "LH Clock.",
+            "LH Counter\nClockw.",
+            "Arm Roll",
+            "Air Drums",
+            "Air Guitar",
+            "Other",
+        ]
+
         grid = label_graph_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
-        max_hamming_distance = 1000
+        max_hamming_distance = 2000
         early_stopping = True
         boost = False
         verbose = True
-        limit = 30
+        limit = 1000
         lambda_ = 3.0
         max_iter = 20
         epsilon = 0.0
@@ -74,20 +91,29 @@ class label_graph_experiment:
 
         edges = Counter(list(zip([class_labels[i] for i in from_label],[class_labels[i] for i in to_label])))
         edges = [(e[0],e[1],dict(edges)[e]) for e in dict(edges)]
+        M = len(edges)
 
-        # print(edges)
+        fig = plt.figure(figsize=(15,15), constrained_layout=True)
+        ax = plt.gca()
+        ax.spines["top"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
         G = nx.DiGraph()
         G.add_weighted_edges_from(edges)
         pos=nx.nx_agraph.graphviz_layout(G)
         options = {
-            'node_color': 'white',
             'node_size': 5000,
             'width': 2,
+            'node_color': 'white',
+            'node_shape': 's',
+            'alpha': 0.5,
         }
+
         nx.draw_networkx(G, pos=pos, **options)
         labels = nx.get_edge_attributes(G,'weight')
         nx.draw_networkx_edge_labels(G,pos,edge_labels=labels)
 
         plt.savefig("Resources/Figures/IBM_connection_graph.pdf")
-        plt.show()
+        plt.show(block=True)

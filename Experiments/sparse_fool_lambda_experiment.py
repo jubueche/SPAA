@@ -5,7 +5,7 @@ import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
 import matplotlib as mpl
-mpl.rcParams['axes.spines.top'] = False
+mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
 class sparse_fool_lambda_experiment:
@@ -24,7 +24,7 @@ class sparse_fool_lambda_experiment:
         grid_nmnist = [g for g in grid if g["architecture"]=="NMNIST"]
         grid_ibm = [g for g in grid if g["architecture"]=="IBMGestures"]
         
-        lambdas = [1.0,2.0,3.0]
+        lambdas = [1.0,2.0,3.0,4.0,5.0]
 
         base_config = {
             "early_stopping": True,
@@ -38,21 +38,21 @@ class sparse_fool_lambda_experiment:
 
         bmnist_config = {
             "max_hamming_distance":200,
-            "limit":30,
+            "limit":1000,
             "step_size":0.01,
             "use_snn": False,
             **base_config}
 
         nmnist_config = {
             "max_hamming_distance":1000,
-            "limit":30,
+            "limit":1000,
             "step_size":0.02,
             "use_snn": True,
             **base_config}
 
         ibm_config = {
-            "max_hamming_distance":1000,
-            "limit":30,
+            "max_hamming_distance":2000,
+            "limit":1000,
             "step_size":0.1,
             "use_snn": True,
             **base_config}
@@ -89,6 +89,7 @@ class sparse_fool_lambda_experiment:
             for i0 in range(shape[0]):
                 label = table.get_label(0,i0)
                 ax = axes_dict[label]
+                ax.spines["top"].set_visible(False)
                 ax.set_xticks(np.arange(0.0,len(lambdas),1.0))
                 ax.set_xticklabels(lambdas)
                 ax.set_xlabel(r"$\lambda$")
@@ -98,6 +99,7 @@ class sparse_fool_lambda_experiment:
                 ax.plot(success_rate, color="b")
                 ax.tick_params(axis='y', labelcolor="b")
                 ax_twin = ax.twinx()
+                ax_twin.spines["top"].set_visible(False)
                 ax_twin.plot(median_L0, color="r", linestyle="dashed")
                 ax_twin.tick_params(axis='y', labelcolor="r")
                 if i0 == 1: ax_twin.set_ylabel("Median L0")
@@ -111,4 +113,4 @@ class sparse_fool_lambda_experiment:
         axes_dict = {"BMNIST":axes[0], "NMNIST":axes[1], "IBMGestures":axes[2]}
         plot(grid, independent_keys=independent_keys,dependent_keys=dependent_keys,label_dict=label_dict, axes_dict=axes_dict)
         plt.savefig("Resources/Figures/vary_lambda.pdf", dpi=1200)
-        plt.show()
+        plt.show(block=False)

@@ -5,14 +5,6 @@ from datajuicer import run, split, configure, query, run, reduce_keys
 from experiment_utils import *
 import numpy as np
 import matplotlib as mpl
-mpl.rcParams['axes.spines.top'] = False
-mpl.rcParams['axes.spines.bottom'] = False
-mpl.rcParams['axes.spines.left'] = False
-mpl.rcParams['axes.spines.right'] = False
-mpl.rcParams['xtick.bottom'] = False
-mpl.rcParams['ytick.left'] = False
-mpl.rcParams['xtick.labelbottom'] = False
-mpl.rcParams['ytick.labelleft'] = False
 import matplotlib.pyplot as plt
 
 from Experiments.visual_ibm_experiment import generate_sample, plot
@@ -96,10 +88,23 @@ class visual_nmnist_experiment:
         fig = plt.figure(constrained_layout=True, figsize=(10,6))
         spec = mpl.gridspec.GridSpec(ncols=N_cols, nrows=N_rows, figure=fig)
         axes = [fig.add_subplot(spec[i,j]) for i in range(N_rows) for j in range(N_cols)]
+
+        for ax in axes:
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.tick_params(axis='both',
+                            which='both',
+                            bottom=False,
+                            top=False,
+                            labelbottom=False,
+                            right=False,
+                            left=False,
+                            labelleft=False)
+
         sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_nmnist.pdf")
-        plt.show()
-
-        
+        plt.show(block=False)

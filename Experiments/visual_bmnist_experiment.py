@@ -5,6 +5,7 @@ from datajuicer import run, split, configure, query, run, reduce_keys
 from experiment_utils import *
 import numpy as np
 import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['axes.spines.top'] = False
 mpl.rcParams['axes.spines.bottom'] = False
 mpl.rcParams['axes.spines.left'] = False
@@ -107,6 +108,6 @@ class visual_bmnist_experiment:
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_bmnist.pdf")
-        plt.show()
+        plt.show(block=False)
 
         

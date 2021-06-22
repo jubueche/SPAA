@@ -1,0 +1,8 @@
+/home/julian/anaconda3/envs/synsense/lib/python3.7/site-packages/torch/nn/_reduction.py:42: UserWarning: size_average and reduce args will be deprecated, please use reduction='sum' instead.
+  warnings.warn(warning.format(ret))
+Traceback (most recent call last):
+  File "main_IBMGestures.py", line 82, in <module>
+    is_warmup=epoch < FLAGS.warmup
+  File "/home/julian/Documents/SPAA/loss.py", line 59, in robust_loss
+    assert FLAGS.boundary_loss in ["trades","madry"], "Unknown boundary loss"
+AssertionError: Unknown boundary loss

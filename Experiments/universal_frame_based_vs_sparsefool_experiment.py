@@ -16,16 +16,16 @@ class universal_frame_based_vs_sparsefool_experiment:
         grid = universal_frame_based_vs_sparsefool_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
-        max_hamming_distance = 3000
-        lambda_ = 3.0
-        max_iter = 1 # - Max iter for universal attack (# rounds through batch)
+        max_hamming_distance = 500
+        lambda_ = 2.0
+        max_iter = 3 # - Max iter for universal attack (# rounds through batch)
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
         max_iter_deep_fool = 50
         n_attack_frames = 1
         use_snn = True
-        num_samples = 2 # - Number of samples per class label
+        num_samples = 8 # - Number of samples per class label
         eviction = "Heatmap" # RandomEviction
 
         def attack_fn_frame_based(X,y):
