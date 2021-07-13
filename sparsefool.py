@@ -173,6 +173,41 @@ class RandomEviction:
         ret[idx] = False
         return ret.reshape(shape)
 
+def universal_heatmap_attack(
+    X,
+    y,
+    net,
+    attack_fn,
+    max_hamming_distance,
+    device="gpu"
+):
+    """
+    Create a heatmap from the samples. Prune the heatmap to max_hamming_distance and return.
+    """
+    input_shape = X.shape
+    t0 = time.time()
+    proj = Heatmap(net, attack_fn, X, y, max_hamming_distance)
+    # - Create True boolean tensor
+    pert_total = torch.ones((1,) + X.shape[1:]).bool().to(device) 
+    pert_total = proj.evict(pert_total)
+
+    X_pert = X.clone()
+    X_pert[:,pert_total] = 1. - X[:,pert_total]
+    reset(net)
+    pred_X_pert = torch.argmax(net.forward(X_pert), dim=1)
+    success_rate = torch.mean((pred_X_pert != y).float())
+    print(f"Success rate {success_rate}")
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["predicted"] = torch.argmax(net.forward(X), dim=1)
+    return_dict["predicted_attacked"] = torch.argmax(net.forward(X_pert), dim=1)
+    return_dict["success_rate"] = success_rate
+    return_dict["elapsed_time"] = t1-t0
+    return_dict["X_adv"] = torch.reshape(X_pert, input_shape)
+    return_dict["pert_total"] = pert_total
+    return_dict["L0"] = float(pert_total.int().sum())
+    return return_dict
 
 def universal_attack(
     X,

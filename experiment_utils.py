@@ -5,7 +5,7 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
-from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction
+from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction, universal_heatmap_attack
 import numpy as np
 
 # - Set device
@@ -138,6 +138,42 @@ def universal_attack_test_acc(
 
     return return_dict
 
+@cachable(dependencies=["model:{architecture}_session_id", "attack_fn_name", "num_samples", "max_hamming_distance", "use_snn"])
+def universal_heatmap_attack_test_acc(
+    model,
+    attack_fn,
+    attack_fn_name,
+    num_samples,
+    max_hamming_distance,
+    use_snn
+):
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    data_loader = get_data_loader_from_model(model, batch_size=1, dset="train", max_size=10000)
+    X,y = get_even_batch(data_loader=data_loader, num_samples=num_samples, num_classes=11)
+
+    return_dict_universal_attack = universal_heatmap_attack(
+            X=X,
+            y=y,
+            net=net,
+            attack_fn=attack_fn,
+            max_hamming_distance=max_hamming_distance,
+            device=device
+        )
+
+    data_loader_test = get_data_loader_from_model(model, batch_size=8, dset="test", max_size=10000)
+
+    return_dict_universal_attack.pop("X_adv")
+    
+    return_dict = {
+        "attacked_test_acc": get_test_acc(data_loader_test, net, return_dict_universal_attack["pert_total"]),
+        "test_acc": get_test_acc(data_loader_test, net),
+        **return_dict_universal_attack}
+
+    return return_dict
 
 @cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
 def prob_fool_on_test_set(
