@@ -25,7 +25,7 @@ class universal_frame_based_vs_sparsefool_experiment:
         max_iter_deep_fool = 50
         n_attack_frames = 1
         use_snn = True
-        num_samples = 8 # - Number of samples per class label
+        num_samples = 1 #! 8 # - Number of samples per class label
         eviction = "Heatmap" # RandomEviction
 
         def attack_fn_frame_based(X,y):
@@ -73,7 +73,16 @@ class universal_frame_based_vs_sparsefool_experiment:
         grid = configure(grid, {"attack_fn": attack_fn_sparsefool}, where={"attack_fn_name":"sparsefool"})
         grid = configure(grid, {"attack_fn": attack_fn_frame_based}, where={"attack_fn_name":"frame_based_sparsefool"})
 
-        grid = run(grid, universal_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
+        grid = run(grid, universal_heatmap_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
+            "{*}",
+            "{attack_fn}",
+            "{attack_fn_name}",
+            "{num_samples}",
+            "{max_hamming_distance}",
+            "{use_snn}"
+        )
+        
+        grid += run(grid, universal_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
             "{*}",
             "{attack_fn}",
             "{attack_fn_name}",
@@ -83,7 +92,7 @@ class universal_frame_based_vs_sparsefool_experiment:
             "{eviction}",
             "{use_snn}"
         )
-        
+
         independent_keys = ["attack_fn_name"]
         dependent_keys = ["attacked_test_acc","test_acc","L0"]
 
