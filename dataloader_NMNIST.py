@@ -1,5 +1,7 @@
 """
 Dataloader for N-MNIST
+The time window is 50 ms both for the frames and for the spike sequences.
+Spike sequences are binned at 5 ms, so there are always 10 frames.
 """
 import zipfile
 import os
@@ -26,8 +28,13 @@ class NMNISTDataLoader:
                 os.system(f"wget {url} -O {p}")
                 with zipfile.ZipFile(self.path / f"{lab}.zip", 'r') as f:
                     f.extractall(self.path)
-        load_n_extract("test_Files", "https://www.dropbox.com/sh/tg2ljlbmtzygrag/AADSKgJ2CjaBWh75HnTNZyhca/Test.zip?dl=1")
-        load_n_extract("train_Files", "https://www.dropbox.com/sh/tg2ljlbmtzygrag/AABlMOuR15ugeOxMCX0Pvoxga/Train.zip?dl=1")
+
+        load_n_extract(
+            "test_Files",
+            "https://www.dropbox.com/sh/tg2ljlbmtzygrag/AADSKgJ2CjaBWh75HnTNZyhca/Test.zip?dl=1")
+        load_n_extract(
+            "train_Files",
+            "https://www.dropbox.com/sh/tg2ljlbmtzygrag/AABlMOuR15ugeOxMCX0Pvoxga/Train.zip?dl=1")
 
         def gen_ds(lab):
             if not (self.path / f"{lab.lower()}_DS/").exists():
