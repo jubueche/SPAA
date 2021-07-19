@@ -15,6 +15,8 @@ from Experiments import (
     universal_vary_batch_size,
     universal_vs_random_experiment,
     visual_universal,
+    patches_vary_target_label,
+    visual_patches
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize()
@@ -25,7 +27,7 @@ from Experiments import (
 # visual_nmnist_experiment.visual_nmnist_experiment.visualize()
 # visual_bmnist_experiment.visual_bmnist_experiment.visualize()
 # sparse_fool_num_frames_experiment.sparse_fool_num_frames_experiment.visualize()
-label_graph_experiment.label_graph_experiment.visualize()
+# label_graph_experiment.label_graph_experiment.visualize()
 # universal_frame_based_vs_sparsefool_experiment.universal_frame_based_vs_sparsefool_experiment.visualize()
 # universal_random_eviction_experiment.universal_random_eviction_experiment.visualize()
 # universal_vary_num_iter.universal_vary_num_iter.visualize()
@@ -33,3 +35,5 @@ label_graph_experiment.label_graph_experiment.visualize()
 # universal_vary_batch_size.universal_vary_batch_size.visualize()
 # visual_universal.visual_universal.visualize()
 # universal_vs_random_experiment.universal_vs_random_experiment.visualize()
+# patches_vary_target_label.patches_vary_target_label.visualize()
+visual_patches.visual_patches.visualize()

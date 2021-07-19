@@ -8,6 +8,20 @@ from architectures import IBMGestures
 from datajuicer import run
 import numpy as np
 
+# class_labels = [
+#     "Hand Clap",
+#     "RH Wave",
+#     "LH Wave",
+#     "RH Clockwise",
+#     "RH Counter Clockw.",
+#     "LH Clockwise",
+#     "LH Counter Clockw.",
+#     "Arm Roll",
+#     "Air Drums",
+#     "Air Guitar",
+#     "Other",
+# ]
+
 # - Set device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -37,12 +51,13 @@ if __name__ == "__main__":
     snn = grid[0]['snn']
 
     # - Hyperparams for adversarial patch
-    n_epochs = 20
+    n_epochs = 5
     patch_type = 'circle'
     input_shape = (20,2,128,128)
-    patch_size = 0.025
-    target_label = 2 # - LH Wave
-    max_iter = 5 # - Number of samples per epoch
+    patch_size = 0.05
+    target_label = 10
+    max_iter = 20 # - Number of samples per epoch
+    eval_after = -1 # - Evaluate after X samples
     max_iter_test = 100
     label_conf = 0.75
     max_count = 300
@@ -60,5 +75,7 @@ if __name__ == "__main__":
         max_iter_test=max_iter_test,
         label_conf=label_conf,
         max_count=max_count,
+        eval_after=eval_after,
         device=device
     )
+    pass
