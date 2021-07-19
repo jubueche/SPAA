@@ -1,7 +1,7 @@
 """
-Dataloader for IBM Gestures
+Dataloader for IBM Gestures.
+Note that this downloads some pre-framed data prepared with AERManager at 200 ms.
 """
-import zipfile
 import os
 import pathlib
 import numpy as np
