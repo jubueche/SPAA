@@ -6,6 +6,7 @@ from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from attacks import non_prob_fool, prob_fool, SCAR
 from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction, universal_heatmap_attack
+from adversarial_patch import adversarial_patch
 import numpy as np
 
 # - Set device
@@ -259,6 +260,47 @@ def sparse_fool_on_test_set(
         return d
     return evaluate_on_test_set(model, limit, attack_fn)
 
+@cachable(dependencies=["model:{architecture}_session_id","n_epochs","target_label","patch_type","input_shape","patch_size","max_iter","label_conf","max_count"])
+def adversarial_patches_exp(
+    model,
+    n_epochs,
+    target_label,
+    patch_type,
+    input_shape,
+    patch_size,
+    max_iter,
+    eval_after,
+    max_iter_test,
+    label_conf,
+    max_count,
+    use_snn
+):
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    data_loader_train = get_data_loader_from_model(model, batch_size=1, dset="train", max_size=10000)
+    data_loader_test = get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000)
+
+    return_dict_adv_patch = adversarial_patch(
+        net=net,
+        train_data_loader=data_loader_train,
+        test_data_loader=data_loader_test,
+        patch_type=patch_type,
+        patch_size=patch_size,
+        input_shape=input_shape,
+        n_epochs=n_epochs,
+        target_label=target_label,
+        max_iter=max_iter,
+        max_iter_test=max_iter_test,
+        label_conf=label_conf,
+        max_count=max_count,
+        eval_after=eval_after,
+        device=device
+    )
+
+    return return_dict_adv_patch
 
 @cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","n_attack_frames","step_size","max_iter_deep_fool","early_stopping","boost","limit"])
 def frame_based_sparse_fool_on_test_set(
