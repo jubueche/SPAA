@@ -73,16 +73,8 @@ class universal_frame_based_vs_sparsefool_experiment:
         grid = configure(grid, {"attack_fn": attack_fn_sparsefool}, where={"attack_fn_name":"sparsefool"})
         grid = configure(grid, {"attack_fn": attack_fn_frame_based}, where={"attack_fn_name":"frame_based_sparsefool"})
 
-        grid = run(grid, universal_heatmap_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
-            "{*}",
-            "{attack_fn}",
-            "{attack_fn_name}",
-            "{num_samples}",
-            "{max_hamming_distance}",
-            "{use_snn}"
-        )
         
-        grid += run(grid, universal_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
+        grid = run(grid, universal_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
             "{*}",
             "{attack_fn}",
             "{attack_fn_name}",
