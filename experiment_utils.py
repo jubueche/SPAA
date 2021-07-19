@@ -16,13 +16,13 @@ device = "cpu"
 # - Set a global seed
 torch.manual_seed(0)
 
-def get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000):
+def get_data_loader_from_model(model, batch_size=1, dset="test", shuffle=False, max_size=10000):
     if model['architecture'] == "NMNIST":
         if batch_size == -1:
             assert False, "The following needs to be tested:batch size -1"
             # batch_size = nmnist_dataloader.mnist_test_ds.__len__()
         nmnist_dataloader = NMNISTDataLoader()
-        data_loader = nmnist_dataloader.get_data_loader(dset=dset, mode="snn", shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = nmnist_dataloader.get_data_loader(dset=dset, mode="snn", shuffle=shuffle, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "BMNIST":
         bmnist_dataloader = BMNISTDataLoader()
         if batch_size == -1:
@@ -30,10 +30,10 @@ def get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000)
             batch_size = ds_len
             if ds_len > max_size:
                 batch_size = max_size
-        data_loader = bmnist_dataloader.get_data_loader(dset=dset, shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = bmnist_dataloader.get_data_loader(dset=dset, shuffle=shuffle, num_workers=4, batch_size=batch_size)
     elif model['architecture'] == "IBMGestures":
         ibm_gestures_dataloader = IBMGesturesDataLoader()
-        data_loader = ibm_gestures_dataloader.get_data_loader(dset, shuffle=False, num_workers=4, batch_size=batch_size)
+        data_loader = ibm_gestures_dataloader.get_data_loader(dset, shuffle=shuffle, num_workers=4, batch_size=batch_size)
     else:
         assert model['architecture'] in ["NMNIST", "BMNIST"], "No other architecture added so far"
     return data_loader
@@ -280,8 +280,8 @@ def adversarial_patches_exp(
     else:
         net = model["ann"]
 
-    data_loader_train = get_data_loader_from_model(model, batch_size=1, dset="train", max_size=10000)
-    data_loader_test = get_data_loader_from_model(model, batch_size=1, dset="test", max_size=10000)
+    data_loader_train = get_data_loader_from_model(model, batch_size=1, dset="train", shuffle=True, max_size=10000)
+    data_loader_test = get_data_loader_from_model(model, batch_size=1, dset="test", shuffle=True, max_size=10000)
 
     return_dict_adv_patch = adversarial_patch(
         net=net,
