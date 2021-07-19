@@ -17,16 +17,15 @@ class universal_vs_random_experiment:
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
         lambda_ = 2.0
-        max_iter = 3 # - Max iter for universal attack (# rounds through batch)
+        max_iter = 1 # - Max iter for universal attack (# rounds through batch)
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
         max_iter_deep_fool = 50
         n_attack_frames = 1
-        max_iter = 3
         use_snn = True
         attack_fn_name = "sparsefool"
-        num_samples = 8 # - Number of samples per class label
+        num_samples = 1 # - Number of samples per class label
 
         max_hamming_distances = [500,750,1000,2000]
 
@@ -74,6 +73,17 @@ class universal_vs_random_experiment:
 
         grid = split(grid, "max_hamming_distance", max_hamming_distances)
 
+        grid_heatmap = run(grid, universal_heatmap_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
+            "{*}",
+            "{attack_fn}",
+            "{attack_fn_name}",
+            "{num_samples}",
+            "{max_hamming_distance}",
+            "{use_snn}"
+        )
+
+        grid_heatmap = configure(grid_heatmap, {"method":"heatmap"})
+
         grid_universal = run(grid, universal_attack_test_acc, n_threads=1, run_mode="normal", store_key="*")(
             "{*}",
             "{attack_fn}",
@@ -84,17 +94,19 @@ class universal_vs_random_experiment:
             "{eviction}",
             "{use_snn}"
         )
-        for g in grid_universal: g["random"]=False
+        
+        grid_universal = configure(grid_universal, {"method":"standard"})
 
         grid_random = run(grid, random_universal_test_acc, n_threads=1, run_mode="normal", store_key="*")(
             "{*}",
             "{max_hamming_distance}",
             "{use_snn}"
         )
-        for g in grid_random: g["random"]=True
+        
+        grid_random = configure(grid_random, {"method":"random"})
 
-        indep = ["max_hamming_distance","random"]
+        indep = ["max_hamming_distance", "method"]
         dep = ["attacked_test_acc", "test_acc", "L0"]
 
-        print(latex(grid_universal+grid_random, indep, dep))
+        print(latex(grid_universal+grid_random + grid_heatmap, indep, dep))
         
