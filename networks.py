@@ -179,6 +179,7 @@ def get_bmnist_ann_arch():
         nn.Flatten(),
         nn.Dropout(p=0.5),
         nn.Linear(9216, 128),
+        nn.ReLU(),
         nn.Linear(128, 10)
     )
     ann = ann.to(device)
