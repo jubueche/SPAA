@@ -22,7 +22,6 @@ class patches_vary_target_label:
         input_shape = (20,2,128,128)
         patch_size = 0.05
         target_labels = np.arange(11)
-        # target_labels = [2]
         max_iter = 20 # - Number of samples per epoch
         eval_after = -1 # _ Evaluate after X samples
         max_iter_test = 100
@@ -46,7 +45,7 @@ class patches_vary_target_label:
 
         grid = split(grid, "target_label", target_labels)
 
-        grid = run(grid, adversarial_patches_exp, n_threads=1, run_mode="normal", store_key="*")(
+        grid = run(grid, adversarial_patches_exp, n_threads=1, run_mode="force", store_key="*")(
             "{*}",
             "{n_epochs}",
             "{target_label}",
@@ -60,4 +59,10 @@ class patches_vary_target_label:
             "{max_count}",
             True
         )
+
+        independent_keys = ["target_label"]
+        dependent_keys = ["success_rate_targeted","success_rate_random"]
+        reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["target_label"])
+
+        print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
         
