@@ -3,7 +3,7 @@ import os.path
 from datajuicer import cachable, get, format_template
 import argparse
 import random
-from networks import load_ann, get_prob_net, get_mnist_ann_arch, get_prob_net_continuous, get_summed_network, load_gestures_snn
+from networks import load_ann, get_prob_net, get_bmnist_ann_arch, get_prob_net_continuous, get_summed_network, load_gestures_snn
 import re
 import ujson as json
 
@@ -253,7 +253,7 @@ class BMNIST:
         data = {}
         base_path = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
-        ann = load_ann(model_path, ann=get_mnist_ann_arch())
+        ann = load_ann(model_path, ann=get_bmnist_ann_arch())
         prob_net = get_prob_net_continuous(ann=ann)
         data["ann"] = ann
         data["prob_net"] = prob_net

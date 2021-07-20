@@ -9,11 +9,11 @@ from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
-import os
 
 # - Set device
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu"
+
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -68,7 +68,6 @@ class ProbNetworkContinuous(torch.nn.Module):
 
 
 class SummedSNN(SinabsNetwork):
-
     def __init__(
         self,
         model,
@@ -85,8 +84,8 @@ class SummedSNN(SinabsNetwork):
         X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
         return X
 
-class IBMGesturesBPTT(nn.Module):
 
+class IBMGesturesBPTT(nn.Module):
     def __init__(self):
         super().__init__()
         specknet_ann = nn.Sequential(
@@ -118,7 +117,7 @@ class IBMGesturesBPTT(nn.Module):
     def forward_raw(self, x):
         if x.ndim == 4:
             x = torch.reshape(x, (1,) + x.shape)
-        (batch_size, t_len, channel,  height, width) = x.shape
+        (batch_size, t_len, channel, height, width) = x.shape
 
         # - Set the batch size in the spiking layer
         self.set_batch_size(batch_size)
@@ -138,9 +137,11 @@ class IBMGesturesBPTT(nn.Module):
             if isinstance(lyr, SpikingLayer):
                 lyr.reset_states(randomize=False)
 
-def get_ann_arch():
+
+def get_nmnist_ann_arch():
     """
-    Generate ann architecture and return
+    Generate ann architecture and return.
+    This is used for the NMNIST experiment.
     """
     # - Create sequential model
     ann = nn.Sequential(
@@ -162,9 +163,10 @@ def get_ann_arch():
     return ann
 
 
-def get_mnist_ann_arch():
+def get_bmnist_ann_arch():
     """
     Generate cnn architecture for MNIST described in https://openreview.net/pdf?id=xCm8kiWRiBT
+    This is used for the BMNIST experiment.
     """
     # - Create sequential model
     ann = nn.Sequential(
@@ -190,13 +192,14 @@ def load_ann(path, ann=None):
     if isinstance(path, str):
         path = pathlib.Path(path)
     if ann is None:
-        ann = get_ann_arch()
+        ann = get_nmnist_ann_arch()
     if not path.exists():
         return None
     else:
         ann.load_state_dict(torch.load(path, map_location=torch.device(device)))
         ann.eval()
         return ann
+
 
 def get_summed_network(ann, n_classes):
     # - Get the deterministic spiking model
@@ -210,6 +213,7 @@ def get_summed_network(ann, n_classes):
         n_classes=n_classes
     )
     return s_net.to(device)
+
 
 def get_det_net(ann=None):
     """
@@ -287,7 +291,7 @@ def train_ann_mnist():
 
     ann = load_ann(path)
     if ann is None:
-        ann = get_ann_arch()
+        ann = get_nmnist_ann_arch()
         data_loader_train = nmnist_dataloader.get_data_loader(
             dset="train", mode="ann", shuffle=True, num_workers=4, batch_size=64)
         optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
@@ -318,10 +322,10 @@ def train_ann_binary_mnist():
     # - Setup path
     path = bmnist_dataloader.path / "B-MNIST/mnist_ann.pt"
 
-    ann = load_ann(path, ann=get_mnist_ann_arch())
+    ann = load_ann(path, ann=get_bmnist_ann_arch())
 
     if ann is None:
-        ann = get_mnist_ann_arch()
+        ann = get_bmnist_ann_arch()
         data_loader_train = bmnist_dataloader.get_data_loader(
             dset="train", shuffle=True, num_workers=4, batch_size=64)
         optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
@@ -338,6 +342,7 @@ def train_ann_binary_mnist():
         torch.save(ann.state_dict(), path)
     ann.eval()  # - Set into eval mode for dropout layers
     return ann
+
 
 def load_gestures_snn(load_path):
     """
