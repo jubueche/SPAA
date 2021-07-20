@@ -248,7 +248,7 @@ def get_det_net(ann=None):
     return model
 
 
-def get_prob_net(ann=None, snn=None, input_shape=(2,34,34)):
+def get_prob_net(ann=None, snn=None, input_shape=(2, 34, 34)):
     """
     Create probabilistic network from spiking network and return.
     """
