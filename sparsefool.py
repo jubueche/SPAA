@@ -1,16 +1,17 @@
 from torch.autograd import Variable
-from torch.autograd.gradcheck import zero_gradients
 from copy import deepcopy
 import torch
 import numpy as np
 import time
-from utils import get_prediction, get_prediction_raw, plot_attacked_prob
-import matplotlib.pyplot as plt
+from utils import get_prediction
+
 
 def reset(net):
     try:
         net.reset_states()
-    except: pass
+    except AttributeError:
+        pass
+
 
 def deepfool(
     im,
@@ -55,7 +56,8 @@ def deepfool(
         grad_orig = deepcopy(x.grad.data)
 
         for k in range(1, num_classes):
-            zero_gradients(x)
+            x.grad.detach_()
+            x.grad.zero_()
 
             fs[0, I[k]].backward(retain_graph=True)
             cur_grad = deepcopy(x.grad.data)
@@ -88,7 +90,7 @@ def deepfool(
         loop_i += 1
 
     x = Variable(X_adv, requires_grad=True)
-    
+
     n_queries += 1
     reset(net)
     fs = net.forward(x)
@@ -127,7 +129,7 @@ def heatmap_pruning(
     pert_projected = torch.zeros_like(pert)
     for flip_idx in flip_set:
         pert_projected[flip_idx] = True
-    
+
     return pert_projected
 
 class Heatmap:
@@ -148,22 +150,22 @@ class Heatmap:
 
         self.pert_aggregated = pert_aggregated
         self.max_hamming_distance = max_hamming_distance
-    
+
     def evict(self, pert_total):
         return heatmap_pruning(torch.squeeze(pert_total),heatmap=self.pert_aggregated, max_hamming_distance=self.max_hamming_distance)
 
 class RandomEviction:
     def __init__(self, net, attack_fn, X, y, max_hamming_distance):
         self.max_hamming_distance = max_hamming_distance
-    
+
     def evict(self, pert_total):
         pert_total = torch.squeeze(pert_total)
 
         overshoot = pert_total.int().sum() - self.max_hamming_distance
         if overshoot <= 0:
             return pert_total
-        
-        
+
+
         shape = pert_total.shape
         unif = pert_total.float().reshape(-1)
 
@@ -188,7 +190,7 @@ def universal_heatmap_attack(
     t0 = time.time()
     proj = Heatmap(net, attack_fn, X, y, max_hamming_distance)
     # - Create True boolean tensor
-    pert_total = torch.ones((1,) + X.shape[1:]).bool().to(device) 
+    pert_total = torch.ones((1,) + X.shape[1:]).bool().to(device)
     pert_total = proj.evict(pert_total)
 
     X_pert = X.clone()
@@ -248,13 +250,13 @@ def universal_attack(
 
                 return_dict_adv = attack_fn(x_i_p,y_i)
                 pert = (return_dict_adv["X_adv"] != x_i_p)
-                
+
                 # - Update the current universal attack
                 pert_total = pert_total | torch.tensor(pert).to(device)
 
                 # - Prune
                 pert_total = proj.evict(pert_total)
-        
+
         X_pert = X.clone()
         X_pert[:,pert_total] = 1. - X[:,pert_total]
         reset(net)
@@ -306,7 +308,7 @@ def frame_based_sparsefool(
     input_shape = x_0.shape
     if x_0.ndim == 5:
         x_0 = x_0[0]
-        
+
     t0 = time.time()
     T = x_0.shape[0]
     reset(net)
@@ -333,7 +335,7 @@ def frame_based_sparsefool(
         attack_frame = get_next_attack_frame(X_adv, n_attack_frames)
         n_queries += 1
 
-        x_tmp = X_adv[attack_frame] 
+        x_tmp = X_adv[attack_frame]
 
         return_dict_sparse_fool = sparsefool(
             x_tmp,
@@ -454,7 +456,7 @@ def sparsefool(
             if not (pred_label == get_prediction(net, X_adv_tmp, mode="non_prob")):
                 L0 = k+1
                 X_adv = X_adv_tmp
-            
+
 
     t1 = time.time()
     return_dict = {}
@@ -517,7 +519,7 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
 
     if not (mask == 0.0).all():
         x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
-        
+
     x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.) #! questionable
     assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
     return x_i
