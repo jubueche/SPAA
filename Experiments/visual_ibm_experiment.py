@@ -1,11 +1,13 @@
 from architectures import IBMGestures
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import sparsefool
-from datajuicer import run, split, configure, query, run, reduce_keys
-from experiment_utils import *
+from datajuicer import run
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import torch
+
+device = torch.device("cpu")
 
 class_labels = [
     "Hand Clap",
@@ -21,12 +23,13 @@ class_labels = [
     "Other",
 ]
 
+
 def generate_sample(attack_fn, data_loader, source_label, target_label, num, class_labels):
     results = []
     got_set = set()
-    if isinstance(source_label,str):
+    if isinstance(source_label, str):
         source_label = [source_label]
-    if isinstance(target_label,str):
+    if isinstance(target_label, str):
         target_label = [target_label]
     if source_label is None:
         source_label = class_labels
@@ -35,40 +38,52 @@ def generate_sample(attack_fn, data_loader, source_label, target_label, num, cla
 
     for idx, (X0, target) in enumerate(data_loader):
         if len(got_set) == num:
-            break
+            break  # we already have enough samples, end and return
+        if not (class_labels[target] in source_label) or class_labels[target] in got_set:
+            continue  # the sample true class is not the one we want or we have it already
+
         X0 = X0.float()
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
-        if class_labels[target] in source_label and not (class_labels[target] in got_set) :
-            return_dict = attack_fn(X0)
-            return_dict["X0"] = X0
-            if class_labels[return_dict["predicted_attacked"]] in target_label and return_dict["predicted"]==target and return_dict["predicted"]!=return_dict["predicted_attacked"]:
-                results.append(return_dict)
-                got_set.add(class_labels[target])
-    
+        return_dict = attack_fn(X0)
+        return_dict["X0"] = X0
+        if (class_labels[return_dict["predicted_attacked"]] in target_label
+                and return_dict["predicted"] == target
+                and return_dict["predicted"] != return_dict["predicted_attacked"]):
+            # we accept the result only if: it's the target we want,
+            # and the net prediction was originally correct,
+            # and the attack was successful.
+            results.append(return_dict)
+            got_set.add(class_labels[target])
+
     return results
 
+
 def plot(args):
-    axes, sample, idx, class_labels = args
-    dt = 200. / len(axes)
+    axes, sample, idx, class_labels, sample_len_ms = args
+    dt = sample_len_ms / len(axes)
     time_labels = ["%.1f ms" % (dt*i) for i in range(len(axes))]
     X0 = sample["X0"].squeeze().sum(dim=1)
     X_adv = sample["X_adv"].squeeze().sum(dim=1)
-    X_diff = torch.abs(X0-X_adv) 
+    X_diff = torch.abs(X0-X_adv)
     num_frames_available = len(axes)
     num_frames = X0.shape[0]
     t = int(num_frames / num_frames_available)
     frames_X0 = [X0[i*t:(i+1)*t].sum(dim=0).cpu().numpy()[::-1] for i in range(len(axes))]
     frames_X_diff = [X_diff[i*t:(i+1)*t].sum(dim=0).cpu().numpy()[::-1] for i in range(len(axes))]
-    for ax_idx,(frame,frame_diff) in enumerate(zip(frames_X0,frames_X_diff)):
-        axes[ax_idx].pcolormesh(frame, vmin=0, vmax=2, cmap=plt.cm.Blues)
-        axes[ax_idx].pcolormesh(np.ma.masked_array(frame_diff,frame_diff==0.), vmin=0, vmax=2, cmap=plt.cm.Reds)
-        if idx==0:
-            axes[ax_idx].text(0,frame.shape[0]-int(frame.shape[0]*0.1),time_labels[ax_idx])
-        if ax_idx==0:
+    vmax = max([frame.max() for frame in frames_X0])  # sorry
+    for ax_idx, (frame, frame_diff) in enumerate(zip(frames_X0, frames_X_diff)):
+        axes[ax_idx].pcolormesh(frame, vmin=0, vmax=vmax, cmap=plt.cm.Blues)
+        axes[ax_idx].pcolormesh(
+            np.ma.masked_array(frame_diff, frame_diff == 0.),
+            vmin=0, vmax=vmax, cmap=plt.cm.Reds)
+        if idx == 0:
+            axes[ax_idx].text(0, frame.shape[0]-int(frame.shape[0]*0.1), time_labels[ax_idx])
+        if ax_idx == 0:
             axes[ax_idx].set_ylabel(class_labels[sample["predicted"]] + r"$\rightarrow$" +
-                                        "\n" + class_labels[sample["predicted_attacked"]])
+                                    "\n" + class_labels[sample["predicted_attacked"]])
+
 
 class visual_ibm_experiment:
     @staticmethod
@@ -85,9 +100,9 @@ class visual_ibm_experiment:
         ibm_gesture_dataloader = IBMGesturesDataLoader()
 
         data_loader_test = ibm_gesture_dataloader.get_data_loader(dset="test",
-                                                                shuffle=False,
-                                                                num_workers=4,
-                                                                batch_size=1)
+                                                                  shuffle=False,
+                                                                  num_workers=4,
+                                                                  batch_size=1)
 
         max_hamming_distance = 1000
         lambda_ = 1.0
@@ -96,7 +111,7 @@ class visual_ibm_experiment:
         overshoot = 0.02
         step_size = 0.1
         max_iter_deep_fool = 50
-        
+
         def attack_fn(X0):
             d = sparsefool(
                 x_0=X0,
@@ -115,7 +130,7 @@ class visual_ibm_experiment:
             )
             return d
 
-        source_labels = ["RH Wave","Air Guitar","Hand Clap"]
+        source_labels = ["RH Wave", "Air Guitar", "Hand Clap"]
         target_labels = None
 
         samples = generate_sample(
@@ -129,10 +144,11 @@ class visual_ibm_experiment:
         # - Create gridspec
         N_rows = 3
         N_cols = 5
+        sample_len_ms = 200.
         num_per_sample = int(N_rows*N_cols / len(samples))
-        fig = plt.figure(constrained_layout=True, figsize=(10,6))
+        fig = plt.figure(constrained_layout=True, figsize=(10, 6))
         spec = mpl.gridspec.GridSpec(ncols=N_cols, nrows=N_rows, figure=fig)
-        axes = [fig.add_subplot(spec[i,j]) for i in range(N_rows) for j in range(N_cols)]
+        axes = [fig.add_subplot(spec[i, j]) for i in range(N_rows) for j in range(N_cols)]
 
         for ax in axes:
             ax.spines['right'].set_visible(False)
@@ -140,18 +156,22 @@ class visual_ibm_experiment:
             ax.spines['left'].set_visible(False)
             ax.spines['bottom'].set_visible(False)
             ax.tick_params(axis='both',
-                            which='both',
-                            bottom=False,
-                            top=False,
-                            labelbottom=False,
-                            right=False,
-                            left=False,
-                            labelleft=False)
+                           which='both',
+                           bottom=False,
+                           top=False,
+                           labelbottom=False,
+                           right=False,
+                           left=False,
+                           labelleft=False)
 
-        sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels) for i in range(len(samples))]
+        sub_axes_samples = [(
+            axes[i*num_per_sample:(i+1)*num_per_sample],
+            samples[i],
+            i,
+            class_labels,
+            sample_len_ms
+        ) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_ibm_gestures.pdf")
         plt.show(block=False)
-
-        

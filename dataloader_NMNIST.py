@@ -12,6 +12,9 @@ from aermanager.parsers import parse_nmnist
 from aermanager.datasets import FramesDataset, SpikeTrainDataset
 from aermanager.dataset_generator import gen_dataset_from_folders
 
+# Each NMNIST digit is 300 ms of recording
+TIME_WINDOW = 300000
+
 
 class NMNISTDataLoader:
     def __init__(
@@ -23,7 +26,7 @@ class NMNISTDataLoader:
 
         # - Download the data if not already exist
         def load_n_extract(lab, url):
-            if not ((self.path / "Test").exists() and (self.path / "Train").exists()) :
+            if not ((self.path / "Test").exists() and (self.path / "Train").exists()):
                 p = str(self.path / f"{lab}.zip")
                 os.system(f"wget {url} -O {p}")
                 with zipfile.ZipFile(self.path / f"{lab}.zip", 'r') as f:
@@ -42,7 +45,7 @@ class NMNISTDataLoader:
                     source_path=self.path / lab,
                     destination_path=self.path / f"{lab.lower()}_DS/",
                     pattern="*.bin",
-                    time_window=50000,
+                    time_window=TIME_WINDOW,
                     parser=parse_nmnist)
         gen_ds("Test")
         gen_ds("Train")
@@ -63,7 +66,7 @@ class NMNISTDataLoader:
             dataset = SpikeTrainDataset(
                 self.path / f"{dset}_DS/",
                 transform=np.float32,
-                force_n_bins=10,
+                force_n_bins=TIME_WINDOW // dt,
                 target_transform=int,
                 dt=dt)
         else:
