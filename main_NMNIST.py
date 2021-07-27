@@ -1,7 +1,7 @@
 """
 Train non-spiking model for N-MNIST and convert to spiking
 """
-from experiment_utils import *
+import torch
 import os.path as path
 from architectures import NMNIST as arch
 from networks import train_ann_mnist

@@ -1,9 +1,9 @@
 from architectures import IBMGestures
-from datajuicer import run, split, configure, query, run, reduce_keys
+from datajuicer import run, configure, reduce_keys
 from experiment_utils import *
-import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
+
 
 class ibm_gestures_comparison_experiment:
     @staticmethod
@@ -56,11 +56,11 @@ class ibm_gestures_comparison_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
+            False,  # early_stopping
             "{boost}",
             "{verbose}",
             "{limit}",
-            True, # - Use SNN
+            True,  # - Use SNN
         )
 
         grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
@@ -73,21 +73,20 @@ class ibm_gestures_comparison_experiment:
             "{n_attack_frames}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
+            False,  # early_stopping
             "{boost}",
             "{verbose}",
             "{limit}",
-            True, # - Use SNN
+            True,  # - Use SNN
         )
 
         attacks = ["sparse_fool","frame_based_sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")
-        
+
         independent_keys = ["attack"]
         dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
         reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
 
         print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
-        

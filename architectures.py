@@ -204,7 +204,7 @@ class NMNIST:
         model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
         ann = load_ann(model_path)
         snn = get_summed_network(ann, n_classes=10)
-        prob_net = get_prob_net(ann,snn)
+        prob_net = get_prob_net(ann, snn, input_shape=None)
         data["ann"] = ann
         data["snn"] = snn
         data["prob_net"] = prob_net

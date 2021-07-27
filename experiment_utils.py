@@ -16,6 +16,7 @@ device = "cpu"
 # - Set a global seed
 torch.manual_seed(0)
 
+
 def get_data_loader_from_model(model, batch_size=1, dset="test", shuffle=False, max_size=10000):
     if model['architecture'] == "NMNIST":
         if batch_size == -1:
@@ -57,6 +58,7 @@ def get_even_batch(data_loader, num_samples, num_classes=11):
 
 def get_test_acc(data_loader, net, pert_total=None):
     correct = 0; num = 0
+    device = next(net.parameters()).device
     for idx, (X0, target) in enumerate(data_loader):
         X0 = X0.float()
         X0 = X0.to(device)
@@ -131,7 +133,7 @@ def universal_attack_test_acc(
     data_loader_test = get_data_loader_from_model(model, batch_size=8, dset="test", max_size=10000)
 
     return_dict_universal_attack.pop("X_adv")
-    
+
     return_dict = {
         "attacked_test_acc": get_test_acc(data_loader_test, net, return_dict_universal_attack["pert_total"]),
         "test_acc": get_test_acc(data_loader_test, net),
@@ -168,7 +170,7 @@ def universal_heatmap_attack_test_acc(
     data_loader_test = get_data_loader_from_model(model, batch_size=8, dset="test", max_size=10000)
 
     return_dict_universal_attack.pop("X_adv")
-    
+
     return_dict = {
         "attacked_test_acc": get_test_acc(data_loader_test, net, return_dict_universal_attack["pert_total"]),
         "test_acc": get_test_acc(data_loader_test, net),
@@ -412,7 +414,7 @@ def scar_attack_on_test_set(
 
 
 def evaluate_on_test_set(model, limit, attack_fn):
-    data_loader = get_data_loader_from_model(model, batch_size=50, max_size=50)
+    data_loader = get_data_loader_from_model(model, batch_size=1, max_size=50)
     N_count = 0
 
     ret = {}
@@ -427,7 +429,7 @@ def evaluate_on_test_set(model, limit, attack_fn):
     def f(X_batched, targets, attack_fn, idx):
         ret_f = {"success": [], "elapsed_time": [], "L0": [], "n_queries": [], "targets": [], "predicted": [], "predicted_attacked": []}
         for i in range(X_batched.shape[0]):
-            print(f"{i}/{X_batched.shape[0]}")
+            # print(f"{i}/{X_batched.shape[0]}")
             X0 = X_batched[i]
             if X0.ndim < 4:
                 X0 = X0.reshape((1,) + X0.shape)
@@ -451,7 +453,7 @@ def evaluate_on_test_set(model, limit, attack_fn):
         X_list = list(torch.split(X, split_size))
         target_list = list(torch.split(target, split_size))
 
-        with ThreadPoolExecutor(max_workers=1) as executor: 
+        with ThreadPoolExecutor(max_workers=1) as executor:
             parallel_results = []
             futures = [executor.submit(f, el, t, attack_fn, idx) for idx, (el, t) in enumerate(zip(X_list, target_list))]
             for future in as_completed(futures):

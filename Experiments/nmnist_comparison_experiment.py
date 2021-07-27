@@ -1,9 +1,9 @@
 from architectures import NMNIST
-from datajuicer import run, split, configure, query, run, reduce_keys
+from datajuicer import run, configure, reduce_keys
 from experiment_utils import *
-import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
+
 
 class nmnist_comparison_experiment:
     @staticmethod
@@ -25,14 +25,14 @@ class nmnist_comparison_experiment:
         early_stopping = True
         boost = False
         verbose = True
-        limit = 1000
-        lambda_ = 1.0
+        limit = 1
+        lambda_ = 5.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
-        step_size = 0.02
+        step_size = 0.2
         max_iter_deep_fool = 50
 
         grid = configure(
@@ -104,7 +104,7 @@ class nmnist_comparison_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
+            False,  # early_stopping
             "{boost}",
             "{verbose}",
             "{limit}",
@@ -115,7 +115,7 @@ class nmnist_comparison_experiment:
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")
-        
+
         independent_keys = ["attack"]
         dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
         reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])

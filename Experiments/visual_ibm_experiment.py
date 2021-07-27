@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import torch
+from experiment_utils import device
 
-device = torch.device("cpu")
 
 class_labels = [
     "Hand Clap",

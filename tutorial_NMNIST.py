@@ -1,7 +1,7 @@
 from dataloader_NMNIST import NMNISTDataLoader
 import torch
 from networks import train_ann_mnist, get_summed_network
-from sparsefool import sparsefool, deepfool
+from sparsefool import sparsefool
 from utils import get_prediction, plot_attacked_prob
 
 # - Set device
@@ -16,7 +16,8 @@ ann = train_ann_mnist()
 # - Turn that into network that sums over time dimension
 snn = get_summed_network(ann, n_classes=10).to(device)
 
-data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=5)
+data_loader_test_spikes = nmnist_dataloader.get_data_loader(
+    dset="test", mode="snn", shuffle=True, num_workers=4, batch_size=5)
 
 # # - Calculate the test accuracy
 # correct = 0; num = 0
@@ -32,7 +33,7 @@ data_loader_test_spikes = nmnist_dataloader.get_data_loader(dset="test", mode="s
 # print(f"Test accuracy is {100*ta}")
 
 # - Attack parameters
-lambda_ = 1.0
+lambda_ = 3.0
 max_hamming_distance = 500
 
 for idx, (data, target) in enumerate(data_loader_test_spikes):
@@ -47,9 +48,10 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
         lambda_=lambda_,
         device=device,
         epsilon=0.0,
-        overshoot=0.2,
+        overshoot=0.02,
+        step_size=0.2,
         max_iter=6,
-        early_stopping=True,
+        early_stopping=False,
         boost=False,
         verbose=True
     )
@@ -65,8 +67,8 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
         f"Sparse fool prediction {int(model_pred_sparse_fool)} with L_0 = {num_flips_sparse_fool}"
     )
 
-    # if idx > 3:
-    #     break
+    if idx > 1:
+        break
 
 plot_attacked_prob(X0, target, snn, N_rows=1, N_cols=1, block=False, figname=1)
 

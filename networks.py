@@ -9,10 +9,7 @@ from dataloader_NMNIST import NMNISTDataLoader
 from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
-
-# - Set device
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+from experiment_utils import device
 
 
 class ProbNetwork(SinabsNetwork):
@@ -77,12 +74,30 @@ class SummedSNN(SinabsNetwork):
         synops=False
     ):
         self.n_classes = n_classes
-        super().__init__(model, spk_model, input_shape, synops)
+        super().__init__(model, spk_model, input_shape=None, synops=synops)
 
-    def forward(self, X):
-        spike_out = super().forward(X)
-        X = torch.reshape(torch.sum(spike_out, axis=0), (1, self.n_classes))
-        return X
+    def forward(self, x):
+        out = self.forward_raw(x)
+        out = torch.sum(out, dim=1)
+        return out
+
+    def forward_raw(self, x):
+        if x.ndim == 4:
+            x = torch.reshape(x, (1,) + x.shape)
+        (batch_size, t_len, channel, height, width) = x.shape
+
+        # - Set the batch size in the spiking layer
+        self.set_batch_size(batch_size)
+
+        x = x.reshape((batch_size * t_len, channel, height, width))
+        out = super().forward(x)
+        out = out.reshape(batch_size, t_len, self.n_classes)
+        return out
+
+    def set_batch_size(self, batch_size):
+        for lyr in self.spiking_model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.batch_size = batch_size
 
 
 class IBMGesturesBPTT(nn.Module):
@@ -210,7 +225,7 @@ def get_summed_network(ann, n_classes):
     s_net = SummedSNN(
         ann,
         model.spiking_model,
-        input_shape=(2, 34, 34),
+        input_shape=None,
         n_classes=n_classes
     )
     return s_net.to(device)
@@ -242,7 +257,7 @@ def get_det_net(ann=None):
         param_layers=['0', '3', '6', '10', '12'])
 
     # - Create spiking model
-    model = from_model(ann, input_shape=(2, 34, 34), add_spiking_output=True)
+    model = from_model(ann, input_shape=None, add_spiking_output=True)
 
     # - Increase 1st layer weights by magnitude
     model.spiking_model[0].weight.data *= 12
@@ -296,7 +311,7 @@ def train_ann_mnist():
         data_loader_train = nmnist_dataloader.get_data_loader(
             dset="train", mode="ann", shuffle=True, num_workers=4, batch_size=64)
         optim = torch.optim.Adam(ann.parameters(), lr=1e-3)
-        n_epochs = 1
+        n_epochs = 10
         for n in range(n_epochs):
             for data, target in data_loader_train:
                 data, target = data.to(device), target.to(device)  # GPU
@@ -305,6 +320,7 @@ def train_ann_mnist():
                 loss = F.cross_entropy(output, target)
                 loss.backward()
                 optim.step()
+            print(loss.item())
         torch.save(ann.state_dict(), path)
     ann.eval()
     return ann

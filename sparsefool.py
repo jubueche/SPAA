@@ -413,6 +413,7 @@ def sparsefool(
     t0 = time.time()
     n_queries = 1
     reset(net)
+    x_0 = x_0.to(device)
     pred_label = torch.argmax(net.forward(Variable(x_0, requires_grad=True)).data).item()
 
     x_i = deepcopy(x_0)
@@ -447,16 +448,6 @@ def sparsefool(
 
     X_adv = fool_im
     L0 = int(torch.sum(torch.abs(fool_im - x_0)))
-
-    if early_stopping:
-        flip_indices = torch.nonzero(torch.abs(x_0-fool_im))
-        X_adv_tmp = deepcopy(x_0)
-        for k,flip_index in enumerate(flip_indices):
-            X_adv_tmp[tuple(flip_index)] = fool_im[tuple(flip_index)]
-            if not (pred_label == get_prediction(net, X_adv_tmp, mode="non_prob")):
-                L0 = k+1
-                X_adv = X_adv_tmp
-
 
     t1 = time.time()
     return_dict = {}

@@ -1,7 +1,7 @@
 **/Test
 **/Train
-**/test_DS
-**/train_DS
+**/test_DS*
+**/train_DS*
 **/.vscode
 **/.ipynb_checkpoints
 **/test_Files.zip
@@ -12,3 +12,4 @@
 **/Gestures.zip
 **/Gestures/gesture_dataset_200ms
 **/Gestures/gesture_dataset_200ms.zip
+.python-version

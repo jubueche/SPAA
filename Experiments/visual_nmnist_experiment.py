@@ -4,11 +4,10 @@ from sparsefool import sparsefool
 from datajuicer import run
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import torch
 
 from Experiments.visual_ibm_experiment import generate_sample, plot
+from experiment_utils import get_test_acc, device
 
-device = torch.device("cpu")
 
 class_labels = [
     "Zero",
@@ -34,7 +33,7 @@ class visual_nmnist_experiment:
     def visualize():
         grid = visual_nmnist_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
-        net = grid[0]["snn"]
+        net = grid[0]["snn"].to(device)
 
         nmnist_dataloader = NMNISTDataLoader()
 
@@ -44,12 +43,14 @@ class visual_nmnist_experiment:
                                                              num_workers=4,
                                                              batch_size=1)
 
+        # print("Test accuracy", get_test_acc(data_loader_test, net))
+
         max_hamming_distance = 1000
         lambda_ = 1.0
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
-        step_size = 0.02
+        step_size = 0.05
         max_iter_deep_fool = 50
 
         def attack_fn(X0):

@@ -1,12 +1,13 @@
 from architectures import BMNIST, NMNIST, IBMGestures
-from datajuicer import run, split, configure, query, run, reduce_keys
+from datajuicer import run, configure
 from experiment_utils import *
 import numpy as np
 from datajuicer.visualizers import *
 from Experiments.bmnist_comparison_experiment import split_attack_grid, make_summary, label_dict
 import matplotlib as mpl
-mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
+mpl.rcParams.update(mpl.rcParamsDefault)
+
 
 class sparse_fool_lambda_experiment:
     @staticmethod
@@ -23,7 +24,7 @@ class sparse_fool_lambda_experiment:
         grid_bmnist = [g for g in grid if g["architecture"]=="BMNIST"]
         grid_nmnist = [g for g in grid if g["architecture"]=="NMNIST"]
         grid_ibm = [g for g in grid if g["architecture"]=="IBMGestures"]
-        
+
         lambdas = [1.0,2.0,3.0,4.0,5.0]
 
         base_config = {
@@ -56,11 +57,11 @@ class sparse_fool_lambda_experiment:
             "step_size":0.1,
             "use_snn": True,
             **base_config}
-        
+
         grid_bmnist = configure(grid_bmnist, bmnist_config)
         grid_nmnist = configure(grid_nmnist, nmnist_config)
         grid_ibm = configure(grid_ibm, ibm_config)
-        
+
         grid = split(grid_bmnist + grid_nmnist + grid_ibm, "lambda_", lambdas)
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
