@@ -104,8 +104,6 @@ class nmnist_comparison_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            False,  # early_stopping
-            "{boost}",
             "{verbose}",
             "{limit}",
             True, # - Use SNN

@@ -22,8 +22,6 @@ class sparse_fool_num_frames_experiment:
         
         config = {
             "max_hamming_distance": 2000,
-            "boost": False,
-            "early_stopping": True,
             "lambda_": 3.0,
             "verbose": True,
             "limit": 1000,
@@ -49,8 +47,6 @@ class sparse_fool_num_frames_experiment:
             "{n_attack_frames}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
-            "{boost}",
             "{verbose}",
             "{limit}",
             "{use_snn}", # - Use SNN

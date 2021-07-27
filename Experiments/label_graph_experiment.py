@@ -40,8 +40,6 @@ class label_graph_experiment:
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
         max_hamming_distance = 2000
-        early_stopping = True
-        boost = False
         verbose = True
         limit = 1000
         lambda_ = 3.0
@@ -56,8 +54,6 @@ class label_graph_experiment:
             grid,
             {
                 "max_hamming_distance": max_hamming_distance,
-                "boost": boost,
-                "early_stopping": early_stopping,
                 "lambda_": lambda_,
                 "verbose": verbose,
                 "limit": limit,
@@ -79,8 +75,6 @@ class label_graph_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
-            "{boost}",
             "{verbose}",
             "{limit}",
             True, # - Use SNN

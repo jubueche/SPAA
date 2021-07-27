@@ -297,8 +297,6 @@ def frame_based_sparsefool(
     step_size=1.0,
     max_iter_deep_fool=50,
     device="cuda",
-    early_stopping=False,
-    boost=False,
     verbose=False,
 ):
     """
@@ -350,8 +348,6 @@ def frame_based_sparsefool(
             step_size=step_size,
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
-            early_stopping=early_stopping,
-            boost=boost,
             verbose=False
         )
 
@@ -406,8 +402,6 @@ def sparsefool(
     step_size=0.01,
     max_iter_deep_fool=50,
     device="cuda",
-    early_stopping=False,
-    boost=False,
     verbose=False,
 ):
     t0 = time.time()

@@ -147,8 +147,6 @@ class bmnist_comparison_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
-            "{boost}",
             "{verbose}",
             "{limit}"
         )

@@ -40,8 +40,6 @@ class universal_random_eviction_experiment:
                     n_attack_frames=n_attack_frames,
                     step_size=step_size,
                     device=device,
-                    early_stopping=False,
-                    boost=False,
                     verbose=True,
                 )
             elif attack_fn_name == "sparsefool":
@@ -53,8 +51,6 @@ class universal_random_eviction_experiment:
                     device=device,
                     epsilon=epsilon,
                     overshoot=overshoot,
-                    early_stopping=True,
-                    boost=False,
                     verbose=True
                 )
 

@@ -51,8 +51,6 @@ for idx, (data, target) in enumerate(data_loader_test_spikes):
         overshoot=0.02,
         step_size=0.2,
         max_iter=6,
-        early_stopping=False,
-        boost=False,
         verbose=True
     )
 

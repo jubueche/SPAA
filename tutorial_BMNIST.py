@@ -49,8 +49,6 @@ for idx, (data, target) in enumerate(data_loader_test):
         lambda_=1.0,
         device=device,
         round_fn=round_fn,
-        early_stopping=True,
-        boost=False,
         verbose=True
     )
 

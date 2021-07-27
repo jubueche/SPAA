@@ -56,8 +56,6 @@ class ibm_gestures_comparison_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            False,  # early_stopping
-            "{boost}",
             "{verbose}",
             "{limit}",
             True,  # - Use SNN
@@ -73,8 +71,6 @@ class ibm_gestures_comparison_experiment:
             "{n_attack_frames}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            False,  # early_stopping
-            "{boost}",
             "{verbose}",
             "{limit}",
             True,  # - Use SNN

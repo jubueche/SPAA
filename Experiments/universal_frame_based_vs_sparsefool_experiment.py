@@ -39,8 +39,6 @@ class universal_frame_based_vs_sparsefool_experiment:
                     n_attack_frames=n_attack_frames,
                     step_size=step_size,
                     device=device,
-                    early_stopping=False,
-                    boost=False,
                     verbose=True,
                 )
         
@@ -53,8 +51,6 @@ class universal_frame_based_vs_sparsefool_experiment:
                     device=device,
                     epsilon=epsilon,
                     overshoot=overshoot,
-                    early_stopping=True,
-                    boost=False,
                     verbose=True
                 )
 

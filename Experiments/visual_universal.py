@@ -5,15 +5,6 @@ from datajuicer import run, split, configure, query, run, reduce_keys
 from experiment_utils import *
 import numpy as np
 import matplotlib as mpl
-# mpl.rcParams.update(mpl.rcParamsDefault)
-# mpl.rcParams['axes.spines.top'] = False
-# mpl.rcParams['axes.spines.bottom'] = False
-# mpl.rcParams['axes.spines.left'] = False
-# mpl.rcParams['axes.spines.right'] = False
-# mpl.rcParams['xtick.bottom'] = False
-# mpl.rcParams['ytick.left'] = False
-# mpl.rcParams['xtick.labelbottom'] = False
-# mpl.rcParams['ytick.labelleft'] = False
 import matplotlib.pyplot as plt
 
 from Experiments.visual_ibm_experiment import plot, generate_sample, class_labels
@@ -62,8 +53,6 @@ class visual_universal:
                     n_attack_frames=n_attack_frames,
                     step_size=step_size,
                     device=device,
-                    early_stopping=False,
-                    boost=False,
                     verbose=True,
                 )
             elif attack_fn_name == "sparsefool":
@@ -75,8 +64,6 @@ class visual_universal:
                     device=device,
                     epsilon=epsilon,
                     overshoot=overshoot,
-                    early_stopping=True,
-                    boost=False,
                     verbose=True
                 )
 

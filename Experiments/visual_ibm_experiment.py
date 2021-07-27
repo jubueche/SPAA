@@ -124,8 +124,6 @@ class visual_ibm_experiment:
                 step_size=step_size,
                 max_iter_deep_fool=max_iter_deep_fool,
                 device=device,
-                early_stopping=True,
-                boost=False,
                 verbose=True
             )
             return d

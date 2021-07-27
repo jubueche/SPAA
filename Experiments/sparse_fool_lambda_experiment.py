@@ -28,8 +28,6 @@ class sparse_fool_lambda_experiment:
         lambdas = [1.0,2.0,3.0,4.0,5.0]
 
         base_config = {
-            "early_stopping": True,
-            "boost": False,
             "verbose": True,
             "max_iter": 20,
             "epsilon": 0.0,
@@ -73,8 +71,6 @@ class sparse_fool_lambda_experiment:
             "{overshoot}",
             "{step_size}",
             "{max_iter_deep_fool}",
-            "{early_stopping}",
-            "{boost}",
             "{verbose}",
             "{limit}",
             "{use_snn}",

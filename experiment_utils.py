@@ -221,7 +221,7 @@ def get_round_fn(round_fn):
     return round_fn_evaluated
 
 
-@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","step_size","max_iter_deep_fool","early_stopping","boost","limit"])
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","step_size","max_iter_deep_fool","limit"])
 def sparse_fool_on_test_set(
     model,
     max_hamming_distance,
@@ -231,8 +231,6 @@ def sparse_fool_on_test_set(
     overshoot,
     step_size,
     max_iter_deep_fool,
-    early_stopping,
-    boost,
     verbose,
     limit,
     use_snn=False,
@@ -255,8 +253,6 @@ def sparse_fool_on_test_set(
             step_size=step_size,
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
-            early_stopping=early_stopping,
-            boost=boost,
             verbose=verbose
         )
         return d
@@ -304,7 +300,7 @@ def adversarial_patches_exp(
 
     return return_dict_adv_patch
 
-@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","n_attack_frames","step_size","max_iter_deep_fool","early_stopping","boost","limit"])
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","n_attack_frames","step_size","max_iter_deep_fool","limit"])
 def frame_based_sparse_fool_on_test_set(
     model,
     max_hamming_distance,
@@ -315,8 +311,6 @@ def frame_based_sparse_fool_on_test_set(
     n_attack_frames,
     step_size,
     max_iter_deep_fool,
-    early_stopping,
-    boost,
     verbose,
     limit,
     use_snn=False,
@@ -340,8 +334,6 @@ def frame_based_sparse_fool_on_test_set(
             step_size=step_size,
             max_iter_deep_fool=max_iter_deep_fool,
             device=device,
-            early_stopping=early_stopping,
-            boost=boost,
             verbose=verbose,
         )
         return d
