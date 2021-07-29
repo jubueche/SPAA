@@ -1,10 +1,12 @@
 import torch
 import numpy as np
 
+from sinabs.from_torch import from_model
 # software to interact with dynapcnn
 from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
 from aermanager.preprocess import create_raster_from_xytp
+from speck_net import SpeckNet
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
@@ -28,8 +30,8 @@ def spiketrain_forward(spk):
 def attack_on_spiketrain(spk):
     dt = 10000
     # first, we need to rasterize the spiketrain
-    raster = create_raster_from_xytp(
-        spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
+    raster = create_raster_from_xytp(spk,
+                                     dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
     # note that to do this we are forced to suppress many spikes
     print("Spikes before binarization:", raster.sum())
     raster = torch.clamp(torch.tensor(raster), 0., 1.)
@@ -58,7 +60,7 @@ def attack_on_spiketrain(spk):
     t, p, x, y = np.where(added_to_raster)
 
     # we adapt and add them to the spiketrain
-    t_microsec = spiketrain['t'][0] + dt * int(t + 0.5)
+    t_microsec = spk['t'][0] + dt * int(t + 0.5)
     # TODO make these into structured array
     # TODO add to spiketrain structured array
     # TODO re-sort and return
@@ -74,17 +76,32 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-snn = GestureClassifierSmall()
+cnn = SpeckNet()
+cnn.load_state_dict(torch.load("./speckNet_weight.pth"))
+snn = from_model(cnn, (2, 128, 128))
+snn.spiking_model.main[0].weight.data *= 0.5
+snn.spiking_model.main[2].weight.data *= 1.0
+snn.spiking_model.main[5].weight.data *= 2.0
+snn.spiking_model.main[8].weight.data *= 2.0
+snn.spiking_model.main[11].weight.data *= 1.6
+snn.spiking_model.main[14].weight.data *= 1.6
+snn.spiking_model.main[18].weight.data *= 1.8
+snn.spiking_model.main[21].weight.data *= 0.7
+snn.spiking_model.main[23].weight.data *= 3.0
+
+# snn = sinabs_model.spiking_model
+
+# snn = GestureClassifierSmall()
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
-    snn.model,
+    snn,
     discretize=True,
     input_shape=input_shape,
 )
 
 # - Apply model to device
-# layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
-layers_ordering = [0, 1, 2, 3]
+layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
+# layers_ordering = [0, 1, 2, 3]
 config = hardware_compatible_model.make_config(
     layers_ordering, monitor_layers=[layers_ordering[-1]])
 hardware_compatible_model.to(
@@ -107,7 +124,7 @@ for i, (spiketrain, label) in enumerate(data_loader_test):
     raster = create_raster_from_xytp(
         spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
     snn.reset_states()
-    out_sinabs = snn.model(torch.tensor(raster)).squeeze().sum(0)
+    out_sinabs = snn(torch.tensor(raster)).squeeze().sum(0)
     out_label_sinabs = torch.argmax(out_sinabs).item()
     print("N. spikes from sinabs:", out_sinabs.sum())
 
