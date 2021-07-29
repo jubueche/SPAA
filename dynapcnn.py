@@ -9,11 +9,12 @@ from aermanager.preprocess import create_raster_from_xytp
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import frame_based_sparsefool
-from networks import GestureClassifierSmall
+from networks import SpeckNetA_Gestures
 
 
-def spiketrain_forward(spk):
-    input_events = io.xytp_to_events(spiketrain, layer=layers_ordering[0], device="dynapcnndevkit:0")
+def spiketrain_forward(spiketrain):
+    input_events = io.xytp_to_events(
+        spiketrain, layer=layers_ordering[0], device="dynapcnndevkit:0")
     evs_out = hardware_compatible_model(input_events)
     evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
     print("N. spikes from chip:", len(evs_out))
@@ -25,7 +26,7 @@ def spiketrain_forward(spk):
     return most_active_neuron
 
 
-def attack_on_spiketrain(spk):
+def attack_on_spiketrain(spiketrain):
     dt = 10000
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
@@ -63,7 +64,7 @@ def attack_on_spiketrain(spk):
     # TODO add to spiketrain structured array
     # TODO re-sort and return
     raise NotImplementedError()
-    return spk
+    return spiketrain
 
 
 # - Dataloader of spiketrains (not rasters!)
@@ -74,7 +75,18 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-snn = GestureClassifierSmall()
+snn = SpeckNetA_Gestures("./speckNet_weight.pth")
+
+snn.spiking_model.main[0].weight.data *= 0.5
+snn.spiking_model.main[2].weight.data *= 1.0
+snn.spiking_model.main[5].weight.data *= 2.0
+snn.spiking_model.main[8].weight.data *= 2.0
+snn.spiking_model.main[11].weight.data *= 1.6
+snn.spiking_model.main[14].weight.data *= 1.6
+snn.spiking_model.main[18].weight.data *= 1.8
+snn.spiking_model.main[21].weight.data *= 0.7
+snn.spiking_model.main[23].weight.data *= 3.0
+
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
     snn.model,
@@ -83,8 +95,8 @@ hardware_compatible_model = DynapcnnCompatibleNetwork(
 )
 
 # - Apply model to device
-# layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
-layers_ordering = [0, 1, 2, 3]
+layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
+# layers_ordering = [0, 1, 2, 3]
 config = hardware_compatible_model.make_config(
     layers_ordering, monitor_layers=[layers_ordering[-1]])
 hardware_compatible_model.to(
