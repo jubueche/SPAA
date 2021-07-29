@@ -39,3 +39,19 @@ class IBMGesturesDataLoader:
         dataloader = DataLoader(dataset, shuffle=shuffle, num_workers=num_workers,
                                 batch_size=batch_size, drop_last=True)
         return dataloader
+
+    def get_spiketrain_dataset(self, dset, shuffle=True, num_workers=4):
+        """
+        Get the torch dataloader
+        dset: "train" or "test"
+        return dataloader
+        """
+        dataset = SpikeTrainDataset(
+            self.path / self.subfolder / dset,
+            transform=None,
+            target_transform=int,
+            dt=None,
+        )
+        dataloader = DataLoader(dataset, shuffle=shuffle, num_workers=num_workers,
+                                batch_size=None, collate_fn=lambda x: x)
+        return dataloader
