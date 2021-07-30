@@ -79,15 +79,18 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 cnn = SpeckNet()
 cnn.load_state_dict(torch.load("./speckNet_weight.pth"))
 snn = from_model(cnn, (2, 128, 128))
-snn.spiking_model.main[0].weight.data *= 0.5
+snn.spiking_model.main[0].weight.data *= 3.5
 snn.spiking_model.main[2].weight.data *= 1.0
-snn.spiking_model.main[5].weight.data *= 2.0
-snn.spiking_model.main[8].weight.data *= 2.0
-snn.spiking_model.main[11].weight.data *= 1.6
-snn.spiking_model.main[14].weight.data *= 1.6
-snn.spiking_model.main[18].weight.data *= 1.8
-snn.spiking_model.main[21].weight.data *= 0.7
-snn.spiking_model.main[23].weight.data *= 3.0
+snn.spiking_model.main[5].weight.data *= 0.6
+snn.spiking_model.main[8].weight.data *= 0.53
+snn.spiking_model.main[11].weight.data *= 0.45
+snn.spiking_model.main[14].weight.data *= 0.61
+snn.spiking_model.main[18].weight.data *= 0.61
+snn.spiking_model.main[21].weight.data *= 0.72
+snn.spiking_model.main[23].weight.data *= 3.2
+
+for name, param in snn.spiking_model.named_parameters():
+    print(f"Max number of parameter {name}, is : {param.max()}", )
 
 # snn = sinabs_model.spiking_model
 
