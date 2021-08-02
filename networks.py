@@ -159,7 +159,7 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
     def __init__(self, file="data/Gestures/Gestures_SpeckNetA_framebased.pth"):
         super().__init__()
 
-        self.seq = nn.Sequential(
+        self.main = nn.Sequential(
             # core 0
             nn.Conv2d(2, 16, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),
             nn.ReLU(),
@@ -197,7 +197,7 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
             # nn.Flatten(),  # otherwise torch complains
         )
         self.load_state_dict(torch.load(file))
-        self.model = from_model(self.seq).spiking_model
+        self.model = from_model(self.main).spiking_model
 
 
 class GestureClassifierSmall(AbstractGestureClassifier):

@@ -1,15 +1,20 @@
 import torch
 import numpy as np
 
-# software to interact with dynapcnn
+# software to interact with dynapcnn and data
 from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
+from sinabs.utils import normalize_weights
+from sinabs.from_torch import from_model
 from aermanager.preprocess import create_raster_from_xytp
+from aermanager.datasets import FramesDataset
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import frame_based_sparsefool
 from networks import SpeckNetA_Gestures
+
+CHIP_AVAILABLE = False
 
 
 def spiketrain_forward(spiketrain):
@@ -75,53 +80,62 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-snn = SpeckNetA_Gestures("./speckNet_weight.pth")
-
-snn.spiking_model.main[0].weight.data *= 0.5
-snn.spiking_model.main[2].weight.data *= 1.0
-snn.spiking_model.main[5].weight.data *= 2.0
-snn.spiking_model.main[8].weight.data *= 2.0
-snn.spiking_model.main[11].weight.data *= 1.6
-snn.spiking_model.main[14].weight.data *= 1.6
-snn.spiking_model.main[18].weight.data *= 1.8
-snn.spiking_model.main[21].weight.data *= 0.7
-snn.spiking_model.main[23].weight.data *= 3.0
-
+ann = SpeckNetA_Gestures("data/Gestures/Gestures_SpeckNetA_framebased1000spk_yalun.pth").main
+# we load some data which we use to calibrate the network and call normalize_weights
+dl_for_sample = torch.utils.data.DataLoader(
+    FramesDataset("data/Gestures/gesture_dataset_200ms/train"),
+    batch_size=256, shuffle=False)
+for sample_data, _ in dl_for_sample:
+    break
+normalize_weights(
+    ann, sample_data,
+    param_layers=["0", "2", "5", "8", "11", "14", "18", "21", "23"],
+    output_layers=["1", "3", "6", "9", "12", "15", "19", "22", "24"],
+    percentile=99
+)
+ann[0].weight.data *= 20.0
+# convert to spiking network
+snn = from_model(ann)
+# convert to chip-compatible spiking network (discretized etc.)
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
-    snn.model,
+    snn.spiking_model,
     discretize=True,
     input_shape=input_shape,
 )
 
 # - Apply model to device
-layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
-# layers_ordering = [0, 1, 2, 3]
-config = hardware_compatible_model.make_config(
-    layers_ordering, monitor_layers=[layers_ordering[-1]])
-hardware_compatible_model.to(
-    device="dynapcnndevkit:0",
-    chip_layers_ordering=layers_ordering,
-    monitor_layers=[layers_ordering[-1]],
-)
+if CHIP_AVAILABLE:
+    layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
+    # layers_ordering = [0, 1, 2, 3]
+    config = hardware_compatible_model.make_config(
+        layers_ordering, monitor_layers=[layers_ordering[-1]])
+    hardware_compatible_model.to(
+        device="dynapcnndevkit:0",
+        chip_layers_ordering=layers_ordering,
+        monitor_layers=[layers_ordering[-1]],
+    )
 
 
+# - Start testing
 correct = 0
 correct_sinabs = 0
 attacks_successful = 0
+out_label = "N/A"
 for i, (spiketrain, label) in enumerate(data_loader_test):
-    # resetting states
-    hardware_compatible_model.samna_device.get_model().apply_configuration(config)
-    # forward pass on the chip
-    out_label = spiketrain_forward(spiketrain)
+    if CHIP_AVAILABLE:
+        # resetting states
+        hardware_compatible_model.samna_device.get_model().apply_configuration(config)
+        # forward pass on the chip
+        out_label = spiketrain_forward(spiketrain)
 
     # raster data for sinabs
     raster = create_raster_from_xytp(
         spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
     snn.reset_states()
-    out_sinabs = snn.model(torch.tensor(raster)).squeeze().sum(0)
+    out_sinabs = snn(torch.tensor(raster)).squeeze().sum(0)
     out_label_sinabs = torch.argmax(out_sinabs).item()
-    print("N. spikes from sinabs:", out_sinabs.sum())
+    print("N. spikes from sinabs:", out_sinabs.sum().item())
 
     print("Ground truth:", label, "chip:", out_label, "sinabs:", out_label_sinabs)
     if out_label == label:
@@ -140,8 +154,7 @@ for i, (spiketrain, label) in enumerate(data_loader_test):
     if i > 100:
         break
 
-print("Accuracy on chip:", correct / (i + 1))
 print("Accuracy in simulation:", correct_sinabs / (i + 1))
-
-
-io.close_device("dynapcnndevkit")
+if CHIP_AVAILABLE:
+    print("Accuracy on chip:", correct / (i + 1))
+    io.close_device("dynapcnndevkit")
