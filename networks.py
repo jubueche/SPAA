@@ -196,7 +196,8 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
             nn.ReLU(),
             # nn.Flatten(),  # otherwise torch complains
         )
-        self.load_state_dict(torch.load(file))
+        if file is not None:
+            self.load_state_dict(torch.load(file))
         self.model = from_model(self.main).spiking_model
 
 
