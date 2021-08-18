@@ -4,17 +4,25 @@ import numpy as np
 # software to interact with dynapcnn and data
 from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
-from sinabs.utils import normalize_weights
-from sinabs.from_torch import from_model
+from sinabs.synopcounter import SNNSynOpCounter
 from aermanager.preprocess import create_raster_from_xytp
-from aermanager.datasets import FramesDataset
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from sparsefool import frame_based_sparsefool
-from networks import SpeckNetA_Gestures
+from sparsefool import sparsefool
+from networks import GestureClassifierSmall
 
 CHIP_AVAILABLE = False
+DEVICE = torch.device("cuda")
+torch.random.manual_seed(1)
+
+events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
+
+
+def reset_states(net):
+    for m in net.modules():
+        if hasattr(m, "reset_states"):
+            m.reset_states()
 
 
 def spiketrain_forward(spiketrain):
@@ -31,45 +39,55 @@ def spiketrain_forward(spiketrain):
     return most_active_neuron
 
 
-def attack_on_spiketrain(spiketrain):
-    dt = 10000
+def attack_on_spiketrain(net, spiketrain):
+    dt = 2000
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
         spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
     # note that to do this we are forced to suppress many spikes
     print("Spikes before binarization:", raster.sum())
-    raster = torch.clamp(torch.tensor(raster), 0., 1.)
+    raster = torch.clamp(torch.tensor(raster), 0., 1.).to(DEVICE)
     print("Spikes after binarization:", raster.sum())
 
     # performing the actual attack
-    return_dict_sparse_fool = frame_based_sparsefool(
+    return_dict_sparse_fool = sparsefool(
         x_0=raster,
-        # y=target,
-        net=snn,
-        max_hamming_distance=np.inf,
-        lambda_=3.0,
-        epsilon=0.0,
+        net=net,
+        max_hamming_distance=1e6,
+        lb=0.0,
+        ub=1.0,
+        lambda_=2.,
+        max_iter=10,
+        epsilon=0.02,
         overshoot=0.02,
-        n_attack_frames=3,
-        step_size=0.05,
-        device="cpu",
-        early_stopping=False,
-        boost=False,
+        step_size=1.0,
+        max_iter_deep_fool=50,
+        device=DEVICE,
         verbose=True,
     )
-    attacked_raster = return_dict_sparse_fool["X_adv"]
+    if not return_dict_sparse_fool["success"]:
+        return None
 
+    attacked_raster = return_dict_sparse_fool["X_adv"]
     # now we only look at where spikes were ADDED (heuristically!)
     added_to_raster = attacked_raster > raster
-    t, p, x, y = np.where(added_to_raster)
+    print("Spikes removed:", (attacked_raster < raster).sum().item())
+    t, p, x, y = torch.where(added_to_raster)
 
     # we adapt and add them to the spiketrain
-    t_microsec = spiketrain['t'][0] + dt * int(t + 0.5)
-    # TODO make these into structured array
-    # TODO add to spiketrain structured array
-    # TODO re-sort and return
-    raise NotImplementedError()
-    return spiketrain
+    t = t.cpu().numpy()
+    t_microsec = spiketrain['t'][0] + (dt * (t + 0.5)).astype(int)
+    added_spikes = np.empty(len(t_microsec), dtype=events_struct)
+    added_spikes["t"] = t_microsec
+    added_spikes["x"] = x.cpu()
+    added_spikes["y"] = y.cpu()
+    added_spikes["p"] = p.cpu()
+    # add to spiketrain structured array
+    new_spiketrain = np.concatenate((spiketrain, added_spikes))
+    # re-sort and return
+    new_spiketrain.sort(order="t")
+    assert np.all(new_spiketrain["t"][1:] >= new_spiketrain["t"][:-1])
+    return new_spiketrain
 
 
 # - Dataloader of spiketrains (not rasters!)
@@ -80,29 +98,19 @@ data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
 )  # - Can vary
 
 # - Preparing the model
-ann = SpeckNetA_Gestures("data/Gestures/Gestures_SpeckNetA_framebased1000spk_yalun.pth").main
-# we load some data which we use to calibrate the network and call normalize_weights
-dl_for_sample = torch.utils.data.DataLoader(
-    FramesDataset("data/Gestures/gesture_dataset_200ms/train"),
-    batch_size=256, shuffle=False)
-for sample_data, _ in dl_for_sample:
-    break
-normalize_weights(
-    ann, sample_data,
-    param_layers=["0", "2", "5", "8", "11", "14", "18", "21", "23"],
-    output_layers=["1", "3", "6", "9", "12", "15", "19", "22", "24"],
-    percentile=99
-)
-ann[0].weight.data *= 20.0
-# convert to spiking network
-snn = from_model(ann)
+gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth")
+snn = gesture_classifier.model
+snn.eval()
+gesture_classifier.eval()
 # convert to chip-compatible spiking network (discretized etc.)
 input_shape = (2, 128, 128)
 hardware_compatible_model = DynapcnnCompatibleNetwork(
-    snn.spiking_model,
+    snn,
     discretize=True,
     input_shape=input_shape,
 )
+gesture_classifier = gesture_classifier.to(DEVICE)
+
 
 # - Apply model to device
 if CHIP_AVAILABLE:
@@ -119,42 +127,63 @@ if CHIP_AVAILABLE:
 
 # - Start testing
 correct = 0
-correct_sinabs = 0
-attacks_successful = 0
-out_label = "N/A"
+attack_reports_success = 0
+success = 0
+counter = SNNSynOpCounter(snn)
 for i, (spiketrain, label) in enumerate(data_loader_test):
     if CHIP_AVAILABLE:
         # resetting states
         hardware_compatible_model.samna_device.get_model().apply_configuration(config)
         # forward pass on the chip
         out_label = spiketrain_forward(spiketrain)
+    else:
+        reset_states(snn)
+        # raster data for sinabs
+        raster = create_raster_from_xytp(
+            spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
+        out_sinabs = snn(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
+        out_label = torch.argmax(out_sinabs).item()
+        print("N. spikes from sinabs:", out_sinabs.sum().item())
+        print("Power consumption:", counter.get_total_power_use())
 
-    # raster data for sinabs
-    raster = create_raster_from_xytp(
-        spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
-    snn.reset_states()
-    out_sinabs = snn(torch.tensor(raster)).squeeze().sum(0)
-    out_label_sinabs = torch.argmax(out_sinabs).item()
-    print("N. spikes from sinabs:", out_sinabs.sum().item())
+    print("Ground truth:", label, "model:", out_label)
 
-    print("Ground truth:", label, "chip:", out_label, "sinabs:", out_label_sinabs)
     if out_label == label:
         correct += 1
-        # attacked_spk = attack_on_spiketrain(spiketrain)
-        # # resetting states
-        # hardware_compatible_model.samna_device.get_model().apply_configuration(config)
-        # # forward pass on the chip
-        # out_label_attacked = spiketrain_forward(attacked_spk)
-        # attacks_successful += out_label_attacked != out_label
-        # print(f"Attack; successful? {out_label_attacked != out_label} "
-        #       f"(new label: {out_label_attacked})")
+        attacked_spk = attack_on_spiketrain(gesture_classifier, spiketrain)
 
-    correct_sinabs += out_label_sinabs == label
+        if attacked_spk is None:
+            continue
+        else:
+            attack_reports_success += 1
+
+        if CHIP_AVAILABLE:
+            # resetting states
+            hardware_compatible_model.samna_device.get_model().apply_configuration(config)
+            # forward pass on the chip
+            out_label_attacked = spiketrain_forward(attacked_spk)
+        else:
+            reset_states(snn)
+            raster_attacked = create_raster_from_xytp(
+                attacked_spk, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
+            out_sinabs_attacked = snn(torch.tensor(raster_attacked).to(DEVICE)).squeeze().sum(0)
+            out_label_attacked = torch.argmax(out_sinabs_attacked).item()
+
+        print(f"Attack; successful? {out_label_attacked != out_label} "
+              f"(new label: {out_label_attacked})")
+        if out_label_attacked != out_label:
+            success += 1
 
     if i > 100:
         break
 
-print("Accuracy in simulation:", correct_sinabs / (i + 1))
+
 if CHIP_AVAILABLE:
     print("Accuracy on chip:", correct / (i + 1))
     io.close_device("dynapcnndevkit")
+else:
+    print("Accuracy in simulation:", correct / (i + 1))
+
+print("Rate of attacks that converged:", attack_reports_success / correct)
+print("Success rate attacks (verified on chip or simulation):", success / correct)
+print("\n")

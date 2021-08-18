@@ -159,7 +159,7 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
     def __init__(self, file="data/Gestures/Gestures_SpeckNetA_framebased.pth"):
         super().__init__()
 
-        self.main = nn.Sequential(
+        self.seq = nn.Sequential(
             # core 0
             nn.Conv2d(2, 16, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),
             nn.ReLU(),
@@ -198,7 +198,7 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
         )
         if file is not None:
             self.load_state_dict(torch.load(file))
-        self.model = from_model(self.main).spiking_model
+        self.model = from_model(self.seq).spiking_model
 
 
 class GestureClassifierSmall(AbstractGestureClassifier):
@@ -230,12 +230,13 @@ class GestureClassifierSmall(AbstractGestureClassifier):
             nn.Linear(8 * 8 * 8, 11, bias=False),
             nn.ReLU()
         )
+        if file is not None:
+            stat_dic = torch.load(file)
+            self.seq.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"])
+            self.seq.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
+            self.seq.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])
+            self.seq.state_dict()["12.weight"][:] = nn.Parameter(stat_dic["model.12.weight"])
         self.model = from_model(self.seq).spiking_model
-        stat_dic = torch.load(file)
-        self.model.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"] * 4)
-        self.model.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
-        self.model.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])
-        self.model.state_dict()["12.weight"][:] = nn.Parameter(stat_dic["model.12.weight"])
 
 
 def get_nmnist_ann_arch():
