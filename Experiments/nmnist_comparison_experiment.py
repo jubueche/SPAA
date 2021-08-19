@@ -25,7 +25,7 @@ class nmnist_comparison_experiment:
         early_stopping = True
         boost = False
         verbose = True
-        limit = 1
+        limit = 1000
         lambda_ = 5.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
@@ -51,11 +51,11 @@ class nmnist_comparison_experiment:
                 "verbose": verbose,
                 "limit": limit,
                 "rand_minmax": rand_minmax,
-                "max_iter":max_iter,
-                "epsilon":epsilon,
-                "overshoot":overshoot,
-                "step_size":step_size,
-                "max_iter_deep_fool":max_iter_deep_fool
+                "max_iter": max_iter,
+                "epsilon": epsilon,
+                "overshoot": overshoot,
+                "step_size": step_size,
+                "max_iter_deep_fool": max_iter_deep_fool
             },
         )
 

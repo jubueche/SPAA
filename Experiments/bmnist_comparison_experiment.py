@@ -1,9 +1,10 @@
 from architectures import BMNIST
-from datajuicer import run, split, configure, query, run, reduce_keys
+from datajuicer import configure, run, reduce_keys
 from experiment_utils import *
 import numpy as np
 from copy import deepcopy
 from datajuicer.visualizers import *
+
 
 def split_attack_grid(grid, attacks):
     grid_tmp = []
@@ -17,26 +18,33 @@ def split_attack_grid(grid, attacks):
             grid_tmp.append(g_tmp)
     return grid_tmp
 
+
 def make_summary(d):
     network_correct = d["attack_result"]["predicted"] == d["attack_result"]["targets"]
-    d["success_rate"] = 100*np.mean(d["attack_result"]["success"][network_correct])
-    d["median_elapsed_time"] = np.median(d["attack_result"]["elapsed_time"][np.array(d["attack_result"]["success"], dtype=bool) & network_correct])
-    d["median_n_queries"] = np.median(d["attack_result"]["n_queries"][np.array(d["attack_result"]["success"], dtype=bool) & network_correct])
-    d["mean_L0"] = np.mean(d["attack_result"]["L0"][np.array(d["attack_result"]["success"], dtype=bool) & network_correct])
-    d["median_L0"] = np.median(d["attack_result"]["L0"][np.array(d["attack_result"]["success"], dtype=bool) & network_correct])
+    d["success_rate"] = 100 * np.mean(d["attack_result"]["success"][network_correct])
+    d["attack_result"]["L0"][~np.array(d["attack_result"]["success"]).astype(bool)] = np.iinfo(int).max  # max it could possibly be
+
+    d["median_elapsed_time"] = np.median(d["attack_result"]["elapsed_time"][network_correct])
+    d["median_n_queries"] = np.median(d["attack_result"]["n_queries"][network_correct])
+    d["mean_L0"] = np.nan
+    d["median_L0"] = np.median(d["attack_result"]["L0"][network_correct])
     return d
 
-label_dict={"scar":"SCAR",
-            "prob_fool":"Prob. PGA",
-            "non_prob_fool":"PGA",
-            "sparse_fool":"Sparse Fool",
-            "frame_based_sparse_fool": "Frame Based Sparse Fool",
-            "success_rate": "Success Rate",
-            "median_elapsed_time":"Median Elapsed Time",
-            "median_n_queries":"Median No. Queries",
-            "mean_L0":"Mean L0 distance",
-            "median_L0":"Median L0 distance",
-            "attack":"Attack"}
+
+label_dict = {
+    "scar": "SCAR",
+    "prob_fool": "Prob. PGA",
+    "non_prob_fool": "PGA",
+    "sparse_fool": "Sparse Fool",
+    "frame_based_sparse_fool": "Frame Based Sparse Fool",
+    "success_rate": "Success Rate",
+    "median_elapsed_time": "Median Elapsed Time",
+    "median_n_queries": "Median No. Queries",
+    "mean_L0": "Mean L0 distance",
+    "median_L0": "Median L0 distance",
+    "attack": "Attack",
+}
+
 
 class bmnist_comparison_experiment:
     @staticmethod
@@ -90,7 +98,7 @@ class bmnist_comparison_experiment:
                 "epsilon": epsilon,
                 "overshoot": overshoot,
                 "step_size": step_size,
-                "max_iter_deep_fool": max_iter_deep_fool
+                "max_iter_deep_fool": max_iter_deep_fool,
             },
         )
 
@@ -103,12 +111,7 @@ class bmnist_comparison_experiment:
             "{limit}",
         )
 
-        grid = run(
-            grid,
-            prob_fool_on_test_set,
-            n_threads=1,
-            store_key="prob_fool",
-        )(
+        grid = run(grid, prob_fool_on_test_set, n_threads=1, store_key="prob_fool",)(
             "{*}",
             "{N_pgd}",
             "{N_MC}",
@@ -148,16 +151,22 @@ class bmnist_comparison_experiment:
             "{step_size}",
             "{max_iter_deep_fool}",
             "{verbose}",
-            "{limit}"
+            "{limit}",
         )
 
-        attacks = ["scar","prob_fool","non_prob_fool","sparse_fool"]
+        attacks = ["scar", "prob_fool", "non_prob_fool", "sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")
-        
+
         independent_keys = ["attack"]
-        dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
-        reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
+        dependent_keys = [
+            "success_rate",
+            "median_elapsed_time",
+            "median_n_queries",
+            "mean_L0",
+            "median_L0",
+        ]
+        reduced = reduce_keys(grid, dependent_keys, reduction=lambda x: x[0], group_by=["attack"])
 
         print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
