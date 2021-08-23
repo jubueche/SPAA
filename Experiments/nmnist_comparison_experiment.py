@@ -26,7 +26,7 @@ class nmnist_comparison_experiment:
         boost = False
         verbose = True
         limit = 1000
-        lambda_ = 5.0
+        lambda_ = 2.0
         rand_minmax = 0.01
         round_fn = "stoch_round"
         max_iter = 20
