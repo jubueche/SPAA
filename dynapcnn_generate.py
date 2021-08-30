@@ -10,7 +10,6 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import sparsefool
 from networks import GestureClassifierSmall
 
-CHIP_AVAILABLE = False
 DEVICE = torch.device("cuda")
 torch.random.manual_seed(1)
 
@@ -48,7 +47,7 @@ def raster_to_spiketrain(added_to_raster, dt, start_t):
 
 
 def attack_on_spiketrain(net, spiketrain):
-    dt = 1000
+    dt = 2000
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
         spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
@@ -97,7 +96,7 @@ def attack_on_spiketrain(net, spiketrain):
 
 
 if __name__ == "__main__":
-    MAX = 1000
+    MAX = 50
     # - Dataloader of spiketrains (not rasters!)
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
