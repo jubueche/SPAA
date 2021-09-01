@@ -24,7 +24,7 @@ def deepfool(
 ):
     n_queries = 0
     X0 = deepcopy(im) # - Keep continuous version
-    assert ((X0 == 0.0) | (X0 == 1.0)).all(), "Non binary input deepfool"
+    # assert ((X0 == 0.0) | (X0 == 1.0)).all(), "Non binary input deepfool"
 
     n_queries += 1
     reset(net) #! reset
@@ -469,8 +469,8 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
     input_shape = x_0.size()
 
     coord_vec = deepcopy(normal)
-    last_sign = coord_vec.sign()
-    mask = torch.zeros_like(coord_vec)
+    # last_sign = coord_vec.sign()
+    # mask = torch.zeros_like(coord_vec)
     plane_normal = deepcopy(coord_vec).view(-1)
     plane_point = deepcopy(boundary_point).view(-1)
 
@@ -499,12 +499,13 @@ def linear_solver(x_0, normal, boundary_point, lb, ub):
         f_k = torch.dot(plane_normal, x_i.view(-1) - plane_point)
         current_sign = f_k.sign().item()
 
-        last_sign = deepcopy(coord_vec.sign())
+        # last_sign = deepcopy(coord_vec.sign())
         coord_vec[r_i != 0] = 0
 
-    if not (mask == 0.0).all():
-        x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
+    # if not (mask == 0.0).all():
+    #     x_i[mask.bool()] =  (last_sign[mask.bool()]+1.) / 2.
 
-    x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.) #! questionable
-    assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
+    # x_i[(x_i != 0.0) & (x_i != 1.0)] = -(x_0[(x_i != 0.0) & (x_i != 1.0)]-1.) #! questionable
+    # assert ((x_i == 0.0) | (x_i == 1.0)).all(), "Not all binary"
+    x_i = torch.round(x_i)
     return x_i
