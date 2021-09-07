@@ -4,10 +4,11 @@ import h5py
 
 # software to interact with dynapcnn and data
 from aermanager.preprocess import create_raster_from_xytp
+from torch._C import device
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from sparsefool import sparsefool
+from adversarial_patch import adversarial_patch, transform_circle
 from networks import GestureClassifierSmall
 
 DEVICE = torch.device("cpu")
@@ -46,7 +47,7 @@ def raster_to_spiketrain(added_to_raster, dt, start_t):
     return added_spikes
 
 
-def attack_on_spiketrain(net, spiketrain):
+def attack_on_spiketrain(patch, spiketrain):
     dt = 2000
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
@@ -54,30 +55,13 @@ def attack_on_spiketrain(net, spiketrain):
     # note that to do this we are forced to suppress many spikes
     print("Spikes:", raster.sum())
     raster = torch.tensor(raster).to(DEVICE)
-    # raster = torch.clamp(torch.tensor(raster), 0., 1.).to(DEVICE)
-    # print("Spikes after binarization:", raster.sum())
+    
+    # Apply the patch
+    # Transform patch randomly
+    patch = transform_circle(patch, target_label, device=DEVICE)
 
-    # performing the actual attack
-    print("Max per bin:", raster.max())
-    return_dict_sparse_fool = sparsefool(
-        x_0=raster,
-        net=net,
-        max_hamming_distance=1e6,
-        lb=0.0,
-        ub=raster.max(),
-        lambda_=2.,
-        max_iter=10,
-        epsilon=0.02,
-        overshoot=0.02,
-        step_size=1.0,
-        max_iter_deep_fool=50,
-        device=DEVICE,
-        verbose=True,
-    )
-    if not return_dict_sparse_fool["success"]:
-        return None
-
-    attacked_raster = return_dict_sparse_fool["X_adv"]
+    # - Create adversarial example
+    attacked_raster = (1. - patch['patch_mask']) * raster + patch['patch_values']
     # now we only look at where spikes were ADDED (heuristically!)
     diff = attacked_raster - raster
     added_to_raster = torch.clamp(diff, min=0)
@@ -101,8 +85,23 @@ if __name__ == "__main__":
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
         shuffle=True,
-        num_workers=4,
+        num_workers=0, # - Needs to be set to 0 on MacOS
     )  # - Can vary
+
+    # - Get the dataloader that we need for the patches
+    patches_data_loader_train = IBMGesturesDataLoader().get_data_loader(
+        dset="train",
+        batch_size=1,
+        dt=2000,
+        num_workers=0
+    )
+    # - Get the rasterized dataloader also for the patches
+    patches_data_loader_test = IBMGesturesDataLoader().get_data_loader(
+        dset="test",
+        batch_size=1,
+        dt=2000,
+        num_workers=0
+    )
 
     # - Preparing the model
     gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth")
@@ -111,8 +110,38 @@ if __name__ == "__main__":
     gesture_classifier.eval()
     gesture_classifier = gesture_classifier.to(DEVICE)
 
+    # - Hyperparameter for the patches
+    n_epochs = 5
+    patch_type = 'circle'
+    input_shape = (100,2,128,128)
+    patch_size = 0.05
+    target_label = 8
+    max_iter = 20 # - Number of samples per epoch
+    eval_after = -1 # - Evaluate after X samples, -1 means never
+    max_iter_test = 100
+    label_conf = 0.75
+    max_count = 300
+
+    # - Get the adversarial patches
+    return_dict_patches = adversarial_patch(
+        net=gesture_classifier,
+        train_data_loader=patches_data_loader_train,
+        test_data_loader=patches_data_loader_test,
+        patch_type=patch_type,
+        patch_size=patch_size,
+        input_shape=input_shape,
+        n_epochs=n_epochs,
+        target_label=target_label,
+        max_iter=max_iter,
+        max_iter_test=max_iter_test,
+        label_conf=label_conf,
+        max_count=max_count,
+        eval_after=eval_after,
+        device=DEVICE
+    )
+
     # Prepare file for saving
-    savef = h5py.File("./attacks.h5", "w")
+    savef = h5py.File("./attacks_patches.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
     ground_truth = savef.create_dataset("ground_truth", (MAX, ), dtype="<u1")
@@ -146,7 +175,7 @@ if __name__ == "__main__":
 
         if out_label == label:
             correct += 1
-            attacked_spk = attack_on_spiketrain(gesture_classifier, spiketrain)
+            attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain)
 
             if attacked_spk is None:
                 continue

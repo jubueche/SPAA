@@ -14,11 +14,14 @@ from networks import GestureClassifierSmall
 
 CHIP_AVAILABLE = False
 MAX = 50
-DEVICE = torch.device("cuda")
+# DEVICE = torch.device("cuda")
+DEVICE = torch.device("cpu")
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
 
+USE_PATCHES = True
+target_label = 8
 
 def reset_states(net):
     for m in net.modules():
@@ -68,7 +71,8 @@ if __name__ == "__main__":
         )
 
     # Get file
-    data = h5py.File("attacks.h5", "r")
+    attack_file = "attacks_patches.h5" if USE_PATCHES else "attacks.h5"
+    data = h5py.File(attack_file, "r")
     successful_attacks = np.where(data["attack_successful"])[0]
 
     # Report file
@@ -77,7 +81,8 @@ if __name__ == "__main__":
 
     # - Start testing
     counter = SNNSynOpCounter(snn)
-    for i in tqdm(successful_attacks):
+    # for i in tqdm(successful_attacks):
+    for i in successful_attacks:
         if i >= MAX:
             break
         spiketrain = data["original_spiketrains"][str(i)]
@@ -103,8 +108,8 @@ if __name__ == "__main__":
                 spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
             out_sinabs = snn(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
             out_label = torch.argmax(out_sinabs).item()
-            print("N. spikes from sinabs:", out_sinabs.sum().item())
-            print("Power consumption:", counter.get_total_power_use())
+            # print("N. spikes from sinabs:", out_sinabs.sum().item())
+            # print("Power consumption:", counter.get_total_power_use())
             # Attack
             reset_states(snn)
             raster_attacked = create_raster_from_xytp(
@@ -112,17 +117,23 @@ if __name__ == "__main__":
             out_sinabs_attacked = snn(torch.tensor(raster_attacked).to(DEVICE)).squeeze().sum(0)
             out_label_attacked = torch.argmax(out_sinabs_attacked).item()
 
-        print("Ground truth:", data["ground_truth"][i],
-              "-- chip (if available):", out_label,
-              "-- chip under attack:", out_label_attacked)
+        # print("Ground truth:", data["ground_truth"][i],
+        #       "-- chip (if available):", out_label,
+        #       "-- chip under attack:", out_label_attacked)
         report.write(f"{i},{ground_truth},{out_label},{out_label_attacked}\n")
 
         if ground_truth != out_label:
             print("Discrepancy between sinabs and chip.")
-        if out_label != out_label_attacked:
-            print("Successful attack!")
+        if not USE_PATCHES:
+            if out_label != out_label_attacked:
+                print("Successful attack!")
+            else:
+                print("Attack converged but unsuccessful on chip.")
         else:
-            print("Attack converged but unsuccessful on chip.")
+            if out_label_attacked == target_label:
+                print("Successful attack!")
+            else:
+                print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked),str(out_label)))
 
     if CHIP_AVAILABLE:
         io.close_device("dynapcnndevkit")
