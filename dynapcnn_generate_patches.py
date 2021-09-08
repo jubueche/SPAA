@@ -11,7 +11,7 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from adversarial_patch import adversarial_patch, transform_circle
 from networks import GestureClassifierSmall
 
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda:1")
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     eval_after = -1 # - Evaluate after X samples, -1 means never
     max_iter_test = 100
     label_conf = 0.75
-    max_count = 300
+    max_count = 100
 
     # - Get the adversarial patches
     return_dict_patches = adversarial_patch(

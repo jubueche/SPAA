@@ -15,7 +15,7 @@ from networks import GestureClassifierSmall
 CHIP_AVAILABLE = False
 MAX = 50
 # DEVICE = torch.device("cuda")
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda:1")
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]

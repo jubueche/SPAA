@@ -49,9 +49,9 @@ def init_patch_circle(
     y, x = np.ogrid[-radius: radius, -radius: radius]
     patch_mask[:,:,:2*radius,:2*radius] = torch.tensor(x**2 + y**2 <= radius**2).float().to(device)
     if init == 'zeros':
-        patch_values = torch.zeros(size=patch_mask.shape) * patch_mask
+        patch_values = torch.zeros(size=patch_mask.shape, device=device) * patch_mask
     else:
-        patch_values = (4 * torch.rand(size=patch_mask.shape) - 2) * patch_mask
+        patch_values = (4 * torch.rand(size=patch_mask.shape, device=device) - 2) * patch_mask
     return {
         'angle':0,
         'cx':0,
@@ -269,17 +269,6 @@ def adversarial_patch(
     eval_after,
     device  
 ):
-
-    patch_random = init_patch(patch_type, patch_size, input_shape, 'random', device)
-    success_rate_random = test(
-        patch_random,
-        net,
-        test_data_loader,
-        max_iter_test,
-        target_label,
-        device
-    )
-
     t0 = time.time()
 
     # - Initialize patch
@@ -323,6 +312,7 @@ def adversarial_patch(
         "L0": torch.nonzero(patch["patch_values"] * patch["patch_mask"]).shape[0],
         "pert_total": patch["patch_values"],
         "patch_mask": patch["patch_mask"],
+        "patch":patch,
         "elapsed_time": time.time()-t0,
         "success_rate_targeted": success_rate_targeted,
         "success_rate_random": success_rate_random
