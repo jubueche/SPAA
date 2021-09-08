@@ -231,7 +231,7 @@ class GestureClassifierSmall(AbstractGestureClassifier):
             nn.ReLU()
         )
         if file is not None:
-            stat_dic = torch.load(file)
+            stat_dic = torch.load(file, map_location=device)
             self.seq.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"])
             self.seq.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
             self.seq.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])

@@ -6,6 +6,7 @@ Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 - Install Sinabs ```pip install sinabs```
 - Install pytorch ```pip install torch ujson gdown```
 - Install aermanager ```pip install aermanager```
+- Install sinabs-dynapcnn ```pip install sinabs-dynapcnn==0.2.1.dev53```
 - Install pygraphviz ```sudo apt-get install python-dev graphviz libgraphviz-dev pkg-config``` followed by ```pip install pygraphviz```
 
 ## Tutorial
