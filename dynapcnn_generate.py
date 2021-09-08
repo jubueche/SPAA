@@ -66,10 +66,10 @@ def attack_on_spiketrain(net, spiketrain):
         lb=0.0,
         ub=raster.max(),
         lambda_=2.,
-        max_iter=10,
+        max_iter=15,
         epsilon=0.02,
         overshoot=0.02,
-        step_size=1.0,
+        step_size=0.3,
         max_iter_deep_fool=50,
         device=DEVICE,
         verbose=True,
@@ -96,7 +96,7 @@ def attack_on_spiketrain(net, spiketrain):
 
 
 if __name__ == "__main__":
-    MAX = 50
+    MAX = 1000
     # - Dataloader of spiketrains (not rasters!)
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     gesture_classifier = gesture_classifier.to(DEVICE)
 
     # Prepare file for saving
-    savef = h5py.File("./attacks.h5", "w")
+    savef = h5py.File("./attacks_0.3.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
     ground_truth = savef.create_dataset("ground_truth", (MAX, ), dtype="<u1")

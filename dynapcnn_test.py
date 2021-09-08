@@ -13,7 +13,6 @@ from aermanager.preprocess import create_raster_from_xytp
 from networks import GestureClassifierSmall
 
 CHIP_AVAILABLE = False
-MAX = 50
 DEVICE = torch.device("cuda")
 torch.random.manual_seed(1)
 
@@ -68,18 +67,16 @@ if __name__ == "__main__":
         )
 
     # Get file
-    data = h5py.File("attacks.h5", "r")
+    data = h5py.File("attacks_0.3.h5", "r")
     successful_attacks = np.where(data["attack_successful"])[0]
 
     # Report file
-    report = open("report.csv", "w")
+    report = open("report_0.3.csv", "w")
     report.write("ID,ground_truth,chip_out,chip_out_attacked\n")
 
     # - Start testing
     counter = SNNSynOpCounter(snn)
     for i in tqdm(successful_attacks):
-        if i >= MAX:
-            break
         spiketrain = data["original_spiketrains"][str(i)]
         attacked_spk = data["attacked_spiketrains"][str(i)]
         ground_truth = data["ground_truth"][i]
