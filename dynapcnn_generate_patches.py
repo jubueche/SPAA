@@ -4,14 +4,13 @@ import h5py
 
 # software to interact with dynapcnn and data
 from aermanager.preprocess import create_raster_from_xytp
-from torch._C import device
 
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from adversarial_patch import adversarial_patch, transform_circle
 from networks import GestureClassifierSmall
 
-DEVICE = torch.device("cuda:1")
+DEVICE = torch.device("cuda:0")
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
@@ -55,13 +54,14 @@ def attack_on_spiketrain(patch, spiketrain):
     # note that to do this we are forced to suppress many spikes
     print("Spikes:", raster.sum())
     raster = torch.tensor(raster).to(DEVICE)
-    
+    max_num_spikes = raster.max()
     # Apply the patch
     # Transform patch randomly
     patch = transform_circle(patch, target_label, device=DEVICE)
 
     # - Create adversarial example
     attacked_raster = (1. - patch['patch_mask']) * raster + patch['patch_values']
+    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
     # now we only look at where spikes were ADDED (heuristically!)
     diff = attacked_raster - raster
     added_to_raster = torch.clamp(diff, min=0)

@@ -12,7 +12,7 @@ import numpy as np
 # - Set device
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
-device = "cuda:1"
+device = "cuda:0"
 
 # - Set a global seed
 torch.manual_seed(0)
