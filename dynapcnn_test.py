@@ -8,18 +8,19 @@ from sinabs.backend.dynapcnn import io
 from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
 from sinabs.synopcounter import SNNSynOpCounter
 from aermanager.preprocess import create_raster_from_xytp
+from sinabs.backend.dynapcnn.chip_factory import ChipFactory
 
 # data and networks from this library
 from networks import GestureClassifierSmall
 
-CHIP_AVAILABLE = False
-DEVICE = torch.device("cuda")
+CHIP_AVAILABLE = True
+DEVICE = "cpu"
 
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
 
-USE_PATCHES = True
+USE_PATCHES = False
 target_label = 8
 
 
@@ -29,9 +30,9 @@ def reset_states(net):
             m.reset_states()
 
 
-def spiketrain_forward(spiketrain):
-    input_events = io.xytp_to_events(
-        spiketrain, layer=layers_ordering[0], device="dynapcnndevkit:0")
+def spiketrain_forward(spiketrain, factory):
+    input_events = factory.xytp_to_events(
+        spiketrain, layer=layers_ordering[0])
     evs_out = hardware_compatible_model(input_events)
     evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
     print("N. spikes from chip:", len(evs_out))
@@ -45,7 +46,7 @@ def spiketrain_forward(spiketrain):
 
 if __name__ == "__main__":
     # - Preparing the model
-    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth")
+    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth", device=DEVICE)
     snn = gesture_classifier.model
     snn.eval()
     gesture_classifier.eval()
@@ -60,12 +61,12 @@ if __name__ == "__main__":
 
     # - Apply model to device
     if CHIP_AVAILABLE:
-        layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
-        # layers_ordering = [0, 1, 2, 3]
-        config = hardware_compatible_model.make_config(
-            layers_ordering, monitor_layers=[layers_ordering[-1]])
+#         layers_ordering = [0, 1, 2, 7, 4, 5, 6, 3, 8]
+        layers_ordering = [0, 1, 2, 3]
+#         config = hardware_compatible_model.make_config(
+#             layers_ordering, monitor_layers=[layers_ordering[-1]])
         hardware_compatible_model.to(
-            device="dynapcnndevkit:0",
+            device="speck2b:0",
             chip_layers_ordering=layers_ordering,
             monitor_layers=[layers_ordering[-1]],
         )
@@ -83,6 +84,7 @@ if __name__ == "__main__":
     counter = SNNSynOpCounter(snn)
     for i in tqdm(successful_attacks):
         spiketrain = data["original_spiketrains"][str(i)]
+        print(spiketrain)
         attacked_spk = data["attacked_spiketrains"][str(i)]
         ground_truth = data["ground_truth"][i]
         assert ground_truth == data["sinabs_label"][i]
@@ -90,14 +92,18 @@ if __name__ == "__main__":
         if CHIP_AVAILABLE:
             # Normal spiketrain
             # resetting states
-            hardware_compatible_model.samna_device.get_model().apply_configuration(config)
+            factory = ChipFactory("speck2b")
+            first_layer_idx = hardware_compatible_model.chip_layers_ordering[0] 
+            
+#             hardware_compatible_model.samna_device.get_model().apply_configuration(config)
             # forward pass on the chip
-            out_label = spiketrain_forward(spiketrain)
+            out_label = spiketrain_forward(spiketrain, factory)
             # Attack
             # resetting states
+#             import ipdb; ipdb.set_trace()
             hardware_compatible_model.samna_device.get_model().apply_configuration(config)
             # forward pass on the chip
-            out_label_attacked = spiketrain_forward(attacked_spk)
+            out_label_attacked = hardware_compatible_model(attacked_spk)
         else:
             reset_states(snn)
             # raster data for sinabs
@@ -133,6 +139,6 @@ if __name__ == "__main__":
                 print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked), str(out_label)))
 
     if CHIP_AVAILABLE:
-        io.close_device("dynapcnndevkit")
+        io.close_device("speck2b")
     data.close()
     report.close()

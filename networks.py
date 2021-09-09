@@ -202,7 +202,7 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
 
 
 class GestureClassifierSmall(AbstractGestureClassifier):
-    def __init__(self, file="data/Gestures/Gestures_Small_BPTT.pth"):
+    def __init__(self, file="data/Gestures/Gestures_Small_BPTT.pth", device=device):
         super().__init__()
 
         self.seq = nn.Sequential(
