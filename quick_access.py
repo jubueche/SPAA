@@ -20,7 +20,7 @@ from Experiments import (
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize()
-# nmnist_comparison_experiment.nmnist_comparison_experiment.visualize()
+nmnist_comparison_experiment.nmnist_comparison_experiment.visualize()
 # ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() 
 # sparse_fool_lambda_experiment.sparse_fool_lambda_experiment.visualize()
 # visual_ibm_experiment.visual_ibm_experiment.visualize()
@@ -36,4 +36,4 @@ from Experiments import (
 # visual_universal.visual_universal.visualize()
 # universal_vs_random_experiment.universal_vs_random_experiment.visualize()
 # patches_vary_target_label.patches_vary_target_label.visualize()
-visual_patches.visual_patches.visualize()
+# visual_patches.visual_patches.visualize()

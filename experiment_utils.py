@@ -10,9 +10,7 @@ from adversarial_patch import adversarial_patch
 import numpy as np
 
 # - Set device
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-# device = "cpu"
-device = "cuda"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # - Set a global seed
 torch.manual_seed(0)

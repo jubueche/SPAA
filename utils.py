@@ -4,8 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 # - Set device
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 def get_index_list(dims):
     if len(dims) == 2:

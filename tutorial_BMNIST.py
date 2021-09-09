@@ -33,7 +33,7 @@ rand_minmax_deepfool = 0.01
 norm = 2
 max_hamming_distance = 50
 verbose = False
-round_fn = lambda x : (torch.rand(x.size()) < x).float()
+round_fn = lambda x : (torch.rand(x.size(), device=device) < x).float()
 
 # - Test data set
 data_loader_test = bmnist_dataloader.get_data_loader(
@@ -48,7 +48,6 @@ for idx, (data, target) in enumerate(data_loader_test):
         max_hamming_distance=max_hamming_distance,
         lambda_=1.0,
         device=device,
-        round_fn=round_fn,
         verbose=True
     )
 

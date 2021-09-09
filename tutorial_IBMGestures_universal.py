@@ -43,8 +43,6 @@ if __name__ == "__main__":
             n_attack_frames=3,
             step_size=0.05,
             device=device,
-            early_stopping=False,
-            boost=False,
             verbose=True,
         )
 

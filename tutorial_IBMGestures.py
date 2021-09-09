@@ -41,7 +41,6 @@ if __name__ == "__main__":
 
         return_dict_sparse_fool = frame_based_sparsefool(
             x_0=X0,
-            y=target,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
@@ -50,8 +49,6 @@ if __name__ == "__main__":
             n_attack_frames=3,
             step_size=0.05,
             device=device,
-            early_stopping=False,
-            boost=False,
             verbose=True,
         )
 
