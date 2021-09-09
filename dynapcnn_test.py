@@ -67,7 +67,7 @@ if __name__ == "__main__":
 #         config = hardware_compatible_model.make_config(
 #             layers_ordering, monitor_layers=[layers_ordering[-1]])
         hardware_compatible_model.to(
-            device="speck2b:0",
+            device="dynapcnndevkit:0",
             chip_layers_ordering=layers_ordering,
             monitor_layers=[layers_ordering[-1]],
         )
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         if CHIP_AVAILABLE:
             # Normal spiketrain
             # resetting states
-            factory = ChipFactory("speck2b")
+            factory = ChipFactory("dynapcnndevkit")
             first_layer_idx = hardware_compatible_model.chip_layers_ordering[0] 
             # forward pass on the chip
             hardware_compatible_model.reset_states()
@@ -138,6 +138,6 @@ if __name__ == "__main__":
                 print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked), str(out_label)))
 
     if CHIP_AVAILABLE:
-        io.close_device("speck2b")
+        io.close_device("dynapcnndevkit")
     data.close()
     report.close()
