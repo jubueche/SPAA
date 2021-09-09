@@ -13,15 +13,15 @@ from aermanager.preprocess import create_raster_from_xytp
 from networks import GestureClassifierSmall
 
 CHIP_AVAILABLE = False
-MAX = 50
-# DEVICE = torch.device("cuda")
-DEVICE = torch.device("cuda:0")
+DEVICE = torch.device("cuda")
+
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
 
 USE_PATCHES = True
 target_label = 8
+
 
 def reset_states(net):
     for m in net.modules():
@@ -76,15 +76,12 @@ if __name__ == "__main__":
     successful_attacks = np.where(data["attack_successful"])[0]
 
     # Report file
-    report = open("report.csv", "w")
+    report = open("report_0.3.csv", "w")
     report.write("ID,ground_truth,chip_out,chip_out_attacked\n")
 
     # - Start testing
     counter = SNNSynOpCounter(snn)
-    # for i in tqdm(successful_attacks):
-    for i in successful_attacks:
-        if i >= MAX:
-            break
+    for i in tqdm(successful_attacks):
         spiketrain = data["original_spiketrains"][str(i)]
         attacked_spk = data["attacked_spiketrains"][str(i)]
         ground_truth = data["ground_truth"][i]
@@ -133,7 +130,7 @@ if __name__ == "__main__":
             if out_label_attacked == target_label:
                 print("Successful attack!")
             else:
-                print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked),str(out_label)))
+                print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked), str(out_label)))
 
     if CHIP_AVAILABLE:
         io.close_device("dynapcnndevkit")

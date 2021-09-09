@@ -232,7 +232,6 @@ def attack(
         X_adv = Variable(X_adv.data, requires_grad=True)
         reset(net)
         adv_out = F.log_softmax(net.forward(X_adv))
-        adv_out_probs, adv_out_labels = adv_out.max(1)
         Loss = -adv_out[0][target_label]
         Loss.backward()
         adv_grad = X_adv.grad.clone()
@@ -274,7 +273,7 @@ def adversarial_patch(
     # - Initialize patch
     patch = init_patch(patch_type, patch_size, input_shape, 'zeros', device)
 
-    for epoch in range(n_epochs):
+    for _ in range(n_epochs):
 
         patch = train(
                     patch,
