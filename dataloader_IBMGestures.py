@@ -19,12 +19,13 @@ class IBMGesturesDataLoader:
         self.subfolder = "gesture_dataset_200ms"
 
         # - Download the data if not already exist
-        if not (self.path / self.subfolder).exists() :
+        if not (self.path / self.subfolder).exists():
             os.system("gdown https://drive.google.com/uc?id=1BqBaqoPpr1YUx8s1boYtt46Tz4IOxpLy")
             os.system("mv gesture_dataset_200ms.zip data/Gestures/")
             os.system("unzip data/Gestures/gesture_dataset_200ms.zip -d data/Gestures/")
 
-    def get_data_loader(self, dset, shuffle=True, num_workers=4, batch_size=128, dt=10000):
+    def get_data_loader(self, dset, shuffle=True, num_workers=4,
+                        batch_size=128, dt=10000, force_n_bins=None):
         """
         Get the torch dataloader
         dset: "train" or "test"
@@ -34,7 +35,8 @@ class IBMGesturesDataLoader:
             self.path / self.subfolder / dset,
             transform=np.float32,
             target_transform=int,
-            dt=dt
+            dt=dt,
+            force_n_bins=force_n_bins
         )
         dataloader = DataLoader(dataset, shuffle=shuffle, num_workers=num_workers,
                                 batch_size=batch_size, drop_last=True)

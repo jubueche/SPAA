@@ -196,7 +196,8 @@ class SpeckNetA_Gestures(AbstractGestureClassifier):
             nn.ReLU(),
             # nn.Flatten(),  # otherwise torch complains
         )
-        self.load_state_dict(torch.load(file))
+        if file is not None:
+            self.load_state_dict(torch.load(file))
         self.model = from_model(self.seq).spiking_model
 
 
@@ -229,12 +230,13 @@ class GestureClassifierSmall(AbstractGestureClassifier):
             nn.Linear(8 * 8 * 8, 11, bias=False),
             nn.ReLU()
         )
+        if file is not None:
+            stat_dic = torch.load(file, map_location=device)
+            self.seq.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"])
+            self.seq.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
+            self.seq.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])
+            self.seq.state_dict()["12.weight"][:] = nn.Parameter(stat_dic["model.12.weight"])
         self.model = from_model(self.seq).spiking_model
-        stat_dic = torch.load(file)
-        self.model.state_dict()["0.weight"][:] = nn.Parameter(stat_dic["model.0.weight"] * 4)
-        self.model.state_dict()["3.weight"][:] = nn.Parameter(stat_dic["model.3.weight"])
-        self.model.state_dict()["7.weight"][:] = nn.Parameter(stat_dic["model.7.weight"])
-        self.model.state_dict()["12.weight"][:] = nn.Parameter(stat_dic["model.12.weight"])
 
 
 def get_nmnist_ann_arch():

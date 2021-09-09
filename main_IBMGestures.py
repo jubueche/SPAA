@@ -6,7 +6,7 @@ import os.path as path
 from architectures import IBMGestures as arch
 from architectures import log
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from networks import IBMGesturesBPTT
+from networks import SpeckNetA_Gestures
 from loss import robust_loss
 import torch
 import time
@@ -25,7 +25,7 @@ def get_test_acc(data_loader, model):
             break
         X0 = X0.float()
         X0 = X0.to(device)
-        X0 = torch.clamp(X0, 0.0, 1.0)
+        # X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
         model.reset_states()
         out = model.forward(X0)
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     t0 = time.time()
     FLAGS = arch.get_flags()
     base_path = path.dirname(path.abspath(__file__))
-    model_save_path = path.join(base_path, f"Resources/Models/{FLAGS.session_id}_model.pt")
+    model_save_path = path.join(base_path, "BPTT_trained_martino.pth")
 
     batch_size = FLAGS.batch_size
     dt = FLAGS.dt
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         model = load_gestures_snn("data/Gestures/pretrain.model")
     else:
         # - Create model
-        model = IBMGesturesBPTT().to(device)
+        model = SpeckNetA_Gestures(file=None).to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         for batch_idx, (sample, target) in enumerate(data_loader_train):
             model.reset_states()
             sample = sample.float()
-            sample = torch.clamp(sample, 0.0, 1.0)
+            # sample = torch.clamp(sample, 0.0, 1.0)
             sample = sample.to(device)
             target = target.long().to(device)
             loss = robust_loss(
