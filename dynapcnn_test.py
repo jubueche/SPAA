@@ -13,8 +13,9 @@ from sinabs.backend.dynapcnn.chip_factory import ChipFactory
 # data and networks from this library
 from networks import GestureClassifierSmall
 
-CHIP_AVAILABLE = False
+CHIP_AVAILABLE = True
 DEVICE = "cpu"
+DYNAPCNN_HARDWARE = "speck2b" # could be dynapcnndevkit or speck2b for example
 
 torch.random.manual_seed(1)
 
@@ -67,7 +68,7 @@ if __name__ == "__main__":
 #         config = hardware_compatible_model.make_config(
 #             layers_ordering, monitor_layers=[layers_ordering[-1]])
         hardware_compatible_model.to(
-            device="speck2b:0",
+            device=DYNAPCNN_HARDWARE,
             chip_layers_ordering=layers_ordering,
             monitor_layers=[layers_ordering[-1]],
         )
@@ -93,7 +94,7 @@ if __name__ == "__main__":
         if CHIP_AVAILABLE:
             # Normal spiketrain
             # resetting states
-            factory = ChipFactory("speck2b")
+            factory = ChipFactory(DYNAPCNN_HARDWARE)
             first_layer_idx = hardware_compatible_model.chip_layers_ordering[0] 
             # forward pass on the chip
             hardware_compatible_model.reset_states()
@@ -138,6 +139,6 @@ if __name__ == "__main__":
                 print("Unsuccessful, predicted %s and was %s" % (str(out_label_attacked), str(out_label)))
 
     if CHIP_AVAILABLE:
-        io.close_device("speck2b")
+        io.close_device(DYNAPCNN_HARDWARE)
     data.close()
     report.close()
