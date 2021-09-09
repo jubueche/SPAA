@@ -13,7 +13,7 @@ from sinabs.backend.dynapcnn.chip_factory import ChipFactory
 # data and networks from this library
 from networks import GestureClassifierSmall
 
-CHIP_AVAILABLE = True
+CHIP_AVAILABLE = False
 DEVICE = "cpu"
 
 torch.random.manual_seed(1)
@@ -33,6 +33,7 @@ def reset_states(net):
 def spiketrain_forward(spiketrain, factory):
     input_events = factory.xytp_to_events(
         spiketrain, layer=layers_ordering[0])
+    
     evs_out = hardware_compatible_model(input_events)
     evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
     print("N. spikes from chip:", len(evs_out))
@@ -94,16 +95,14 @@ if __name__ == "__main__":
             # resetting states
             factory = ChipFactory("speck2b")
             first_layer_idx = hardware_compatible_model.chip_layers_ordering[0] 
-            
-#             hardware_compatible_model.samna_device.get_model().apply_configuration(config)
             # forward pass on the chip
+            hardware_compatible_model.reset_states()
             out_label = spiketrain_forward(spiketrain, factory)
             # Attack
             # resetting states
-#             import ipdb; ipdb.set_trace()
-            hardware_compatible_model.samna_device.get_model().apply_configuration(config)
+            hardware_compatible_model.reset_states()
             # forward pass on the chip
-            out_label_attacked = hardware_compatible_model(attacked_spk)
+            out_label_attacked = spiketrain_forward(attacked_spk, factory)
         else:
             reset_states(snn)
             # raster data for sinabs
