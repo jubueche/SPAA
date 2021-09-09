@@ -21,7 +21,7 @@ class sparse_fool_num_frames_experiment:
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
         
         config = {
-            "max_hamming_distance": 2000,
+            "max_hamming_distance": int(1e6),
             "lambda_": 3.0,
             "verbose": True,
             "limit": 1000,
@@ -86,4 +86,4 @@ class sparse_fool_num_frames_experiment:
         axes_dict = {"IBMGestures":axes[0]}
         plot(grid, independent_keys=independent_keys,dependent_keys=dependent_keys,label_dict=label_dict, axes_dict=axes_dict)
         plt.savefig("Resources/Figures/vary_num_frames.pdf", dpi=1200)
-        plt.show(block=False)
+        # plt.show(block=False)

@@ -60,14 +60,13 @@ class visual_bmnist_experiment:
                                                                 num_workers=4,
                                                                 batch_size=1)
 
-        max_hamming_distance = 200
+        max_hamming_distance = int(1e6)
         lambda_ = 1.0
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.01
         max_iter_deep_fool = 50
-        n_attack_frames = 1
 
         def attack_fn(X0):
             d = sparsefool(
@@ -106,6 +105,6 @@ class visual_bmnist_experiment:
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_bmnist.pdf")
-        plt.show(block=False)
+        # plt.show(block=False)
 
         

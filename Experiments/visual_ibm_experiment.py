@@ -104,7 +104,7 @@ class visual_ibm_experiment:
                                                                   num_workers=4,
                                                                   batch_size=1)
 
-        max_hamming_distance = 1000
+        max_hamming_distance = int(1e6)
         lambda_ = 1.0
         max_iter = 20
         epsilon = 0.0
@@ -172,4 +172,4 @@ class visual_ibm_experiment:
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_ibm_gestures.pdf")
-        plt.show(block=False)
+        # plt.show(block=False)

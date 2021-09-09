@@ -1,5 +1,7 @@
+from operator import imod
 from architectures import BMNIST, NMNIST, IBMGestures
 from datajuicer import run, configure
+from datajuicer.utils import split
 from experiment_utils import *
 import numpy as np
 from datajuicer.visualizers import *
@@ -36,21 +38,21 @@ class sparse_fool_lambda_experiment:
         }
 
         bmnist_config = {
-            "max_hamming_distance":200,
+            "max_hamming_distance":int(1e6),
             "limit":1000,
             "step_size":0.01,
             "use_snn": False,
             **base_config}
 
         nmnist_config = {
-            "max_hamming_distance":1000,
+            "max_hamming_distance":int(1e6),
             "limit":1000,
             "step_size":0.02,
             "use_snn": True,
             **base_config}
 
         ibm_config = {
-            "max_hamming_distance":2000,
+            "max_hamming_distance":int(1e6),
             "limit":1000,
             "step_size":0.1,
             "use_snn": True,
@@ -110,4 +112,4 @@ class sparse_fool_lambda_experiment:
         axes_dict = {"BMNIST":axes[0], "NMNIST":axes[1], "IBMGestures":axes[2]}
         plot(grid, independent_keys=independent_keys,dependent_keys=dependent_keys,label_dict=label_dict, axes_dict=axes_dict)
         plt.savefig("Resources/Figures/vary_lambda.pdf", dpi=1200)
-        plt.show(block=False)
+        # plt.show(block=False)

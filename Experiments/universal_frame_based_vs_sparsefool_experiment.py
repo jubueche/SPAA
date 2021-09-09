@@ -22,7 +22,6 @@ class universal_frame_based_vs_sparsefool_experiment:
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
-        max_iter_deep_fool = 50
         n_attack_frames = 1
         use_snn = True
         num_samples = 1 #! 8 # - Number of samples per class label
@@ -32,7 +31,7 @@ class universal_frame_based_vs_sparsefool_experiment:
             return frame_based_sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
-                    max_hamming_distance=5000,
+                    max_hamming_distance=int(1e6),
                     lambda_=lambda_,
                     epsilon=epsilon,
                     overshoot=overshoot,
@@ -46,7 +45,7 @@ class universal_frame_based_vs_sparsefool_experiment:
             return sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
-                    max_hamming_distance=5000,
+                    max_hamming_distance=int(1e6),
                     lambda_=lambda_,
                     device=device,
                     epsilon=epsilon,

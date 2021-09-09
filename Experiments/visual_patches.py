@@ -34,6 +34,7 @@ class visual_patches:
         max_iter_test = 100
         label_conf = 0.75
         max_count = 300
+        sample_len_ms = 200.
 
         grid = configure(
             grid,
@@ -122,10 +123,10 @@ class visual_patches:
                             left=False,
                             labelleft=False)
 
-        sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels) for i in range(len(samples))]
+        sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels,sample_len_ms) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/adversarial_patch.pdf")
-        plt.show(block=False)
+        # plt.show(block=False)
 
         

@@ -21,11 +21,11 @@ class nmnist_comparison_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = 1000
+        max_hamming_distance = int(1e6)
         early_stopping = True
         boost = False
         verbose = True
-        limit = 10
+        limit = 1000
         lambda_ = 2.0
         rand_minmax = 0.01
         round_fn = "stoch_round"

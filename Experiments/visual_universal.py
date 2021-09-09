@@ -30,15 +30,15 @@ class visual_universal:
 
         max_hamming_distance = 500
         lambda_ = 2.0
-        max_iter = 3 # - Max iter for universal attack (# rounds through batch)
+        max_iter = 1 # - Max iter for universal attack (# rounds through batch)
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
-        max_iter_deep_fool = 50
         n_attack_frames = 1
         use_snn = True
         attack_fn_name = "sparsefool"
-        num_samples = 8 # - Number of samples per class label
+        sample_len_ms = 200.
+        num_samples = 1 # - Number of samples per class label
         eviction = "Heatmap" # RandomEviction
 
         def attack_fn(X,y):
@@ -46,7 +46,7 @@ class visual_universal:
                 return frame_based_sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
-                    max_hamming_distance=5000,
+                    max_hamming_distance=int(1e6),
                     lambda_=lambda_,
                     epsilon=epsilon,
                     overshoot=overshoot,
@@ -59,7 +59,7 @@ class visual_universal:
                 return sparsefool(
                     x_0=X,
                     net=grid[0]["snn"] if use_snn else grid[0]["ann"],
-                    max_hamming_distance=5000,
+                    max_hamming_distance=int(1e6),
                     lambda_=lambda_,
                     device=device,
                     epsilon=epsilon,
@@ -136,10 +136,10 @@ class visual_universal:
                             left=False,
                             labelleft=False)
 
-        sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels) for i in range(len(samples))]
+        sub_axes_samples = [(axes[i*num_per_sample:(i+1)*num_per_sample],samples[i],i,class_labels,sample_len_ms) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/universal_ibm_gestures.pdf")
-        plt.show(block=False)
+        # plt.show(block=False)
 
         

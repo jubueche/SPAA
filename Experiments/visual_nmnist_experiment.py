@@ -45,12 +45,12 @@ class visual_nmnist_experiment:
 
         # print("Test accuracy", get_test_acc(data_loader_test, net))
 
-        max_hamming_distance = 1000
+        max_hamming_distance = int(1e6)
         lambda_ = 1.0
         max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
-        step_size = 0.05
+        step_size = 0.2
         max_iter_deep_fool = 50
 
         def attack_fn(X0):
@@ -114,4 +114,4 @@ class visual_nmnist_experiment:
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_nmnist.pdf")
-        plt.show(block=False)
+        # plt.show(block=False)

@@ -62,7 +62,7 @@ class bmnist_comparison_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = 200
+        max_hamming_distance = int(1e6)
         thresh = 0.1  # - For SCAR
         early_stopping = True
         boost = False
