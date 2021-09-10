@@ -34,16 +34,12 @@ def reset_states(net):
 def spiketrain_forward(spiketrain, factory):
     input_events = factory.xytp_to_events(
         spiketrain, layer=layers_ordering[0])
-    
     evs_out = hardware_compatible_model(input_events)
-    evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
-    print("N. spikes from chip:", len(evs_out))
-
-    if len(evs_out) == 0:
-        return 0  # wrong but actually imitates the behaviour of torch.
-    labels, counts = np.unique(evs_out["channel"], return_counts=True)
-    most_active_neuron = labels[np.argmax(counts)]
-    return most_active_neuron
+    output_neuron_index = [ev.feature for ev in evs_out]
+    times = [ev.timestamp for ev in evs_out]
+    activations = np.bincount(output_neuron_index)
+    print("N. spikes from chip:", len(output_neuron_index))
+    return activations.argmax()
 
 
 if __name__ == "__main__":
