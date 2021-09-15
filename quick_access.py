@@ -20,7 +20,7 @@ from Experiments import (
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
-# nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
+nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
 # ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
 # sparse_fool_lambda_experiment.sparse_fool_lambda_experiment.visualize() # C
 # visual_ibm_experiment.visual_ibm_experiment.visualize() # C
@@ -31,7 +31,7 @@ from Experiments import (
 # universal_frame_based_vs_sparsefool_experiment.universal_frame_based_vs_sparsefool_experiment.visualize() # C
 # universal_random_eviction_experiment.universal_random_eviction_experiment.visualize() # - Calibrate max_hamming_distance
 # universal_vary_num_iter.universal_vary_num_iter.visualize() # - Calibrate max_hamming_distance
-universal_vary_max_hamming_distance.universal_vary_max_hamming_distance.visualize() # - This is redundant
+# universal_vary_max_hamming_distance.universal_vary_max_hamming_distance.visualize() # - This is redundant
 # universal_vary_batch_size.universal_vary_batch_size.visualize() # - Calibrate max_hamming_distance
 # visual_universal.visual_universal.visualize() # - Calibrate max_hamming_distance
 # universal_vs_random_experiment.universal_vs_random_experiment.visualize() # - Calibrate max_hamming_distance

@@ -83,31 +83,14 @@ class label_graph_experiment:
         from_label = grid[0]["sparse_fool"]["predicted"]
         to_label = grid[0]["sparse_fool"]["predicted_attacked"]
 
-        edges = Counter(list(zip([class_labels[i] for i in from_label],[class_labels[i] for i in to_label])))
-        edges = [(e[0],e[1],dict(edges)[e]) for e in dict(edges)]
-        M = len(edges)
+        transition_matrix = np.zeros(shape=(11,11))
+        for (f,t) in zip(from_label,to_label):
+            transition_matrix[f,t] += 1
 
-        fig = plt.figure(figsize=(15,15), constrained_layout=True)
-        ax = plt.gca()
-        ax.spines["top"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.spines["left"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-
-        G = nx.DiGraph()
-        G.add_weighted_edges_from(edges)
-        pos=nx.nx_agraph.graphviz_layout(G)
-        options = {
-            'node_size': 5000,
-            'width': 2,
-            'node_color': 'white',
-            'node_shape': 's',
-            'alpha': 0.5,
-        }
-
-        nx.draw_networkx(G, pos=pos, **options)
-        labels = nx.get_edge_attributes(G,'weight')
-        nx.draw_networkx_edge_labels(G,pos,edge_labels=labels)
+        plt.matshow(transition_matrix)
+        plt.colorbar()
+        plt.ylabel("From label")
+        plt.xlabel("To label")
 
         plt.savefig("Resources/Figures/IBM_connection_graph.pdf")
-        plt.show(block=True)
+        # plt.show(block=True)

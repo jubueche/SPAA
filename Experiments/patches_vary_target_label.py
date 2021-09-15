@@ -45,7 +45,7 @@ class patches_vary_target_label:
 
         grid = split(grid, "target_label", target_labels)
 
-        grid = run(grid, adversarial_patches_exp, n_threads=1, run_mode="force", store_key="*")(
+        grid = run(grid, adversarial_patches_exp, n_threads=1, run_mode="normal", store_key="*")(
             "{*}",
             "{n_epochs}",
             "{target_label}",

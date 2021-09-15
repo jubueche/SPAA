@@ -2,6 +2,7 @@ import argparse
 import importlib
 import os.path
 import os
+import traceback
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-exp", nargs="+", default=[])
@@ -21,4 +22,10 @@ for module in ["Experiments."+ex for ex in flags.exp]:
 experiments = [getattr(getattr(toplevel,ex),ex) for ex in flags.exp]
 
 for ex in experiments:
-    ex.visualize()
+    try:
+        ex.visualize()
+    except:
+        tb = traceback.format_exc()
+    else:
+        tb = "Success"
+    print(tb)

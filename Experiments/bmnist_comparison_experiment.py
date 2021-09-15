@@ -75,7 +75,7 @@ class bmnist_comparison_experiment:
         epsilon = 0.0
         overshoot = 0.02
         max_iter_deep_fool = 50
-        step_size = 0.01
+        step_size = 0.2
 
         grid = configure(
             grid,
@@ -141,7 +141,7 @@ class bmnist_comparison_experiment:
             "{limit}",
         )
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, store_key="sparse_fool")(
+        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="force", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
             "{lambda_}",

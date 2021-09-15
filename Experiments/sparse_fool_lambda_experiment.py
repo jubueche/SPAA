@@ -47,7 +47,7 @@ class sparse_fool_lambda_experiment:
         nmnist_config = {
             "max_hamming_distance":int(1e6),
             "limit":1000,
-            "step_size":0.02,
+            "step_size":0.2,
             "use_snn": True,
             **base_config}
 

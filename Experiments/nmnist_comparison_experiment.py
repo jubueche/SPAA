@@ -21,7 +21,7 @@ class nmnist_comparison_experiment:
         eps = 1.5
         eps_iter = 0.3
         norm = 2
-        max_hamming_distance = int(1e6)
+        max_hamming_distance = 1000
         early_stopping = True
         boost = False
         verbose = True
