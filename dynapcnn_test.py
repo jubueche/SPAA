@@ -23,6 +23,8 @@ events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", boo
 
 USE_PATCHES = True
 target_label = 8
+n_epoch = 1
+MAX = 50
 
 
 def reset_states(net):
@@ -73,9 +75,7 @@ if __name__ == "__main__":
         )
 
     # Get file
-    n_epoch = 1
-    MAX = 50
-    attack_file = f"attacks_patches_ep{n_epoch}_lb{target_label}_num{MAX}.h5" if USE_PATCHES else "attacks.h5"
+    attack_file = f"./attack_patches/attacks_patches_ep{n_epoch}_lb{target_label}_num{MAX}.h5" if USE_PATCHES else "attacks.h5"
     data = h5py.File(attack_file, "r")
     successful_attacks = np.where(data["attack_successful"])[0]
 
