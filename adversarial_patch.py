@@ -312,6 +312,7 @@ def adversarial_patch(
         "pert_total": patch["patch_values"],
         "patch_mask": patch["patch_mask"],
         "patch":patch,
+        "patch_random": patch_random,
         "elapsed_time": time.time()-t0,
         "success_rate_targeted": success_rate_targeted,
         "success_rate_random": success_rate_random
