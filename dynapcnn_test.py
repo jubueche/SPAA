@@ -2,6 +2,8 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import h5py
+import sys
+import os
 
 # software to interact with dynapcnn and data
 from sinabs.backend.dynapcnn import io
@@ -13,7 +15,7 @@ from sinabs.backend.dynapcnn.chip_factory import ChipFactory
 # data and networks from this library
 from networks import GestureClassifierSmall
 
-CHIP_AVAILABLE = True
+CHIP_AVAILABLE = False
 DEVICE = "cpu"
 DYNAPCNN_HARDWARE = "speck2b" # could be dynapcnndevkit or speck2b for example
 
@@ -22,8 +24,9 @@ torch.random.manual_seed(1)
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
 
 USE_PATCHES = True
-target_label = 8
-n_epoch = 1
+target_label = sys.argv[1]
+n_epoch = sys.argv[2]
+patch_size = sys.argv[3]
 MAX = 50
 
 
@@ -75,17 +78,18 @@ if __name__ == "__main__":
         )
 
     # Get file
-    attack_file = f"./attack_patches/attacks_patches_ep{n_epoch}_lb{target_label}_num{MAX}.h5" if USE_PATCHES else "attacks.h5"
+    attack_file = f"./attack_patches/attacks_patches_ep{n_epoch}_lb{target_label}_num{MAX}_patchsize{patch_size}.h5" if USE_PATCHES else "attacks.h5"
     data = h5py.File(attack_file, "r")
     successful_attacks = np.where(data["attack_successful"])[0]
 
     # Report file
     if USE_PATCHES:
-        report = open(f"report_0.3_ep{n_epoch}lb{target_label}_num{MAX}.csv", "w")
+        if not os.path.exists("./attack_result_csv"): os.makedirs("./attack_result_csv")
+        report = open(f"./attack_result_csv/report_ep{n_epoch}_lb{target_label}_num{MAX}_patchsize{patch_size}.csv", "w")
         success_rate_targeted = round(data["targeted_patch_successful_rate"][()], 3)
         success_rate_random = round(data["random_patch_successful_rate"][()], 3)
         report.write(f"ID,ground_truth,chip_out,chip_out_attacked,chip_out_attacked_random,"
-                     f"targeted_patch_success_rate_simulation: {success_rate_targeted},random_patch_success_rate_simulation: {success_rate_random}\n")
+                     f"targeted_patch_success_rate_simulation: {success_rate_targeted}, random_patch_success_rate_simulation: {success_rate_random}\n")
     else:
         report = open(f"report_0.3.csv", "w")
         report.write("ID,ground_truth,chip_out,chip_out_attacked\n")
@@ -112,10 +116,11 @@ if __name__ == "__main__":
             out_label = spiketrain_forward(spiketrain, factory)
             # Attack
             # resetting states
-            # hardware_compatible_model.reset_states()
+            hardware_compatible_model.reset_states()
             # forward pass on the chip
             out_label_attacked = spiketrain_forward(attacked_spk, factory)
             if USE_PATCHES:
+                hardware_compatible_model.reset_states()
                 out_label_attacked_random = spiketrain_forward(attacked_spk_random, factory)
         else:
             reset_states(snn)

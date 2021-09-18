@@ -63,7 +63,8 @@ def attack_on_spiketrain(patch, spiketrain):
 
     # - Create adversarial example
     attacked_raster = (1. - patch['patch_mask']) * raster + patch['patch_values']
-    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
+    # attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
+    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., 1))
     # now we only look at where spikes were ADDED (heuristically!)
     diff = attacked_raster - raster
     added_to_raster = torch.clamp(diff, min=0)
@@ -116,7 +117,7 @@ if __name__ == "__main__":
     n_epochs = int(sys.argv[1])
     patch_type = 'circle'
     input_shape = (200, 2, 128, 128)
-    patch_size = 0.05
+    patch_size = float(sys.argv[3])
     target_label = int(sys.argv[2])
     max_iter = 20 # - Number of samples per epoch
     eval_after = -1 # - Evaluate after X samples, -1 means never
@@ -144,7 +145,7 @@ if __name__ == "__main__":
 
     # Prepare file for saving
     if not os.path.exists("./attack_patches"): os.makedirs("./attack_patches")
-    savef = h5py.File(f"./attack_patches/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}.h5", "w")
+    savef = h5py.File(f"./attack_patches/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
     saved_attk_random = savef.create_group("attacked_spiketrains_random")
@@ -182,7 +183,9 @@ if __name__ == "__main__":
 
         if out_label == label:
             correct += 1
+            print("target patch: ")
             attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain)
+            print("random patch: ")
             attacked_spk_random = attack_on_spiketrain(return_dict_patches["patch_random"], spiketrain)
 
             if attacked_spk is None:
