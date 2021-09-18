@@ -51,7 +51,7 @@ def init_patch_circle(
     if init == 'zeros':
         patch_values = torch.zeros(size=patch_mask.shape, device=device) * patch_mask
     else:
-        patch_values = (4 * torch.rand(size=patch_mask.shape, device=device) - 2) * patch_mask
+        patch_values = (2 * torch.rand(size=patch_mask.shape, device=device) - 1) * patch_mask
     return {
         'angle':0,
         'cx':0,
