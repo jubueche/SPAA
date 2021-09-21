@@ -1,22 +1,24 @@
 from architectures import BMNIST
 from dataloader_BMNIST import BMNISTDataLoader
 from sparsefool import sparsefool
-from datajuicer import run, split, configure, query, run, reduce_keys
-from experiment_utils import *
+from datajuicer import run
+from experiment_utils import device
 import numpy as np
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+from Experiments.visual_ibm_experiment import generate_sample
+
+
 mpl.rcParams.update(mpl.rcParamsDefault)
-mpl.rcParams['axes.spines.top'] = False
-mpl.rcParams['axes.spines.bottom'] = False
-mpl.rcParams['axes.spines.left'] = False
-mpl.rcParams['axes.spines.right'] = False
+# mpl.rcParams['axes.spines.top'] = False
+# mpl.rcParams['axes.spines.bottom'] = False
+# mpl.rcParams['axes.spines.left'] = False
+# mpl.rcParams['axes.spines.right'] = False
 mpl.rcParams['xtick.bottom'] = False
 mpl.rcParams['ytick.left'] = False
 mpl.rcParams['xtick.labelbottom'] = False
 mpl.rcParams['ytick.labelleft'] = False
-import matplotlib.pyplot as plt
 
-from Experiments.visual_ibm_experiment import generate_sample
 
 class_labels = [
     "Zero",
@@ -31,15 +33,18 @@ class_labels = [
     "Nine"
 ]
 
+
 def plot(args):
     ax, sample, idx, class_labels = args
     X0 = sample["X0"].squeeze()
     X_adv = sample["X_adv"].squeeze()
-    X_diff = torch.abs(X0-X_adv).cpu().numpy()[::-1]
+    X_diff = (X0-X_adv).cpu().numpy()[::-1]
     X0 = X0.cpu().numpy()[::-1]
-    ax.pcolormesh(X0, vmin=0, vmax=2, cmap=plt.cm.Blues)
-    ax.pcolormesh(np.ma.masked_array(X_diff,X_diff==0.), vmin=0, vmax=2, cmap=plt.cm.Reds)
-    ax.set_ylabel(class_labels[sample["predicted"]] + r"$\rightarrow$" + class_labels[sample["predicted_attacked"]])
+    ax.set_aspect("equal")
+    ax.pcolormesh(X0, vmin=0, vmax=1.5, cmap=plt.cm.gray_r)
+    ax.pcolormesh(np.ma.masked_array(X_diff, X_diff == 0.), vmin=-1, vmax=1, cmap=plt.cm.bwr_r)
+    ax.set_xlabel(class_labels[sample["predicted"]] + r"$\rightarrow$" + class_labels[sample["predicted_attacked"]])
+
 
 class visual_bmnist_experiment:
     @staticmethod
@@ -56,9 +61,9 @@ class visual_bmnist_experiment:
         bmnist_dataloader = BMNISTDataLoader()
 
         data_loader_test = bmnist_dataloader.get_data_loader(dset="test",
-                                                                shuffle=False,
-                                                                num_workers=4,
-                                                                batch_size=1)
+                                                             shuffle=False,
+                                                             num_workers=4,
+                                                             batch_size=1)
 
         max_hamming_distance = int(1e6)
         lambda_ = 1.0
@@ -96,15 +101,13 @@ class visual_bmnist_experiment:
             class_labels=class_labels)
 
         # - Create gridspec
-        N_rows = 2
-        N_cols = 5
-        fig = plt.figure(constrained_layout=True, figsize=(10,6))
+        N_rows = 1
+        N_cols = 10
+        fig = plt.figure(constrained_layout=True, figsize=(12, 1.4))
         spec = mpl.gridspec.GridSpec(ncols=N_cols, nrows=N_rows, figure=fig)
-        axes = [fig.add_subplot(spec[i,j]) for i in range(N_rows) for j in range(N_cols)]
-        sub_axes_samples = [(axes[i],samples[i],i,class_labels) for i in range(len(samples))]
+        axes = [fig.add_subplot(spec[i, j]) for i in range(N_rows) for j in range(N_cols)]
+        sub_axes_samples = [(axes[i], samples[i], i, class_labels) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
         plt.savefig("Resources/Figures/samples_bmnist.pdf")
         # plt.show(block=False)
-
-        

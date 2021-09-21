@@ -6,7 +6,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from Experiments.visual_ibm_experiment import generate_sample, plot
-from experiment_utils import get_test_acc, device
+from experiment_utils import device
 
 
 class_labels = [
@@ -47,7 +47,7 @@ class visual_nmnist_experiment:
 
         max_hamming_distance = int(1e6)
         lambda_ = 1.0
-        max_iter = 20
+        max_iter = 5
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.2
@@ -91,10 +91,10 @@ class visual_nmnist_experiment:
         axes = [fig.add_subplot(spec[i, j]) for i in range(N_rows) for j in range(N_cols)]
 
         for ax in axes:
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_visible(False)
+            # ax.spines['right'].set_visible(False)
+            # ax.spines['top'].set_visible(False)
+            # ax.spines['left'].set_visible(False)
+            # ax.spines['bottom'].set_visible(False)
             ax.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -110,8 +110,9 @@ class visual_nmnist_experiment:
             i,
             class_labels,
             sample_len_ms,
+            i == N_rows - 1
         ) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
-        plt.savefig("Resources/Figures/samples_nmnist.pdf")
+        plt.savefig("Resources/Figures/samples_nmnist.pdf", bbox_inches='tight')
         # plt.show(block=False)

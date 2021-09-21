@@ -2,7 +2,6 @@ from architectures import IBMGestures
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import sparsefool
 from datajuicer import run
-import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import torch
@@ -60,8 +59,14 @@ def generate_sample(attack_fn, data_loader, source_label, target_label, num, cla
     return results
 
 
+colors = [(1., 0., 0., 0.0), (1., 0., 0., 1.0)]
+nodes = [0, 1]
+cmap = mpl.colors.LinearSegmentedColormap.from_list(
+    "transparent_red", list(zip(nodes, colors)))
+
+
 def plot(args):
-    axes, sample, idx, class_labels, sample_len_ms = args
+    axes, sample, idx, class_labels, sample_len_ms, is_last = args
     dt = sample_len_ms / len(axes)
     time_labels = ["%.1f ms" % (dt*i) for i in range(len(axes))]
     X0 = sample["X0"].squeeze().sum(dim=1)
@@ -74,12 +79,10 @@ def plot(args):
     frames_X_diff = [X_diff[i*t:(i+1)*t].sum(dim=0).cpu().numpy()[::-1] for i in range(len(axes))]
     vmax = max([frame.max() for frame in frames_X0])  # sorry
     for ax_idx, (frame, frame_diff) in enumerate(zip(frames_X0, frames_X_diff)):
-        axes[ax_idx].pcolormesh(frame, vmin=0, vmax=vmax, cmap=plt.cm.Blues)
-        axes[ax_idx].pcolormesh(
-            np.ma.masked_array(frame_diff, frame_diff == 0.),
-            vmin=0, vmax=vmax, cmap=plt.cm.Reds)
-        if idx == 0:
-            axes[ax_idx].text(0, frame.shape[0]-int(frame.shape[0]*0.1), time_labels[ax_idx])
+        axes[ax_idx].pcolormesh(frame, vmin=0, vmax=2, cmap=plt.cm.gray_r)
+        axes[ax_idx].pcolormesh(frame_diff, vmin=0, vmax=1, cmap=cmap)
+        if is_last:
+            axes[ax_idx].text(1, 1, time_labels[ax_idx])
         if ax_idx == 0:
             axes[ax_idx].set_ylabel(class_labels[sample["predicted"]] + r"$\rightarrow$" +
                                     "\n" + class_labels[sample["predicted_attacked"]])
@@ -106,7 +109,7 @@ class visual_ibm_experiment:
 
         max_hamming_distance = int(1e6)
         lambda_ = 1.0
-        max_iter = 20
+        max_iter = 5
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.1
@@ -128,7 +131,7 @@ class visual_ibm_experiment:
             )
             return d
 
-        source_labels = ["RH Wave", "Air Guitar", "Hand Clap"]
+        source_labels = ["RH Wave", "Air Guitar"]
         target_labels = None
 
         samples = generate_sample(
@@ -140,19 +143,20 @@ class visual_ibm_experiment:
             class_labels=class_labels)
 
         # - Create gridspec
-        N_rows = 3
+        N_rows = 2
         N_cols = 5
         sample_len_ms = 200.
         num_per_sample = int(N_rows*N_cols / len(samples))
-        fig = plt.figure(constrained_layout=True, figsize=(10, 6))
+        fig = plt.figure(constrained_layout=True, figsize=(12, 4.7))
         spec = mpl.gridspec.GridSpec(ncols=N_cols, nrows=N_rows, figure=fig)
         axes = [fig.add_subplot(spec[i, j]) for i in range(N_rows) for j in range(N_cols)]
 
         for ax in axes:
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_visible(False)
+            ax.set_aspect("equal")
+            # ax.spines['right'].set_visible(False)
+            # ax.spines['top'].set_visible(False)
+            # ax.spines['left'].set_visible(False)
+            # ax.spines['bottom'].set_visible(False)
             ax.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -167,9 +171,12 @@ class visual_ibm_experiment:
             samples[i],
             i,
             class_labels,
-            sample_len_ms
+            sample_len_ms,
+            i == N_rows - 1
         ) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
-        plt.savefig("Resources/Figures/samples_ibm_gestures.pdf")
+        plt.savefig("Resources/Figures/samples_ibm_gestures.pdf", bbox_inches='tight')
+        plt.savefig("Resources/Figures/samples_ibm_gestures.png", bbox_inches='tight')
+
         # plt.show(block=False)
