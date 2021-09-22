@@ -63,8 +63,8 @@ def attack_on_spiketrain(patch, spiketrain):
 
     # - Create adversarial example
     attacked_raster = (1. - patch['patch_mask']) * raster + patch['patch_values']
-    # attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
-    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., 1))
+    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
+    # attacked_raster = torch.round(torch.clamp(attacked_raster, 0., 1))
     # now we only look at where spikes were ADDED (heuristically!)
     diff = attacked_raster - raster
     added_to_raster = torch.clamp(diff, min=0)

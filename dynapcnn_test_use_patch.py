@@ -18,7 +18,7 @@ from networks import GestureClassifierSmall
 # hyper-param
 DEVICE = "cpu"
 DYNAPCNN_HARDWARE = "speck2b" # could be dynapcnndevkit or speck2b for example
-TARGET_LABEL = sys.argv[1]
+TARGET_LABEL = int(sys.argv[1])
 N_EPOCH = sys.argv[2]
 PATCH_SIZE = sys.argv[3]
 MAX = 50
