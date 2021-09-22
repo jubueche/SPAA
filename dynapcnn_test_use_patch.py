@@ -83,14 +83,14 @@ if __name__ == "__main__":
     # Report file
     report_save_dir = "./attack_result_csv"
     if not os.path.exists(report_save_dir): os.makedirs(report_save_dir)
-    report_save_name = "report_ep{N_EPOCH}_lb{TARGET_LABEL}_num{MAX}_patchsize{PATCH_SIZE}.csv"
+    report_save_name = f"report_ep{N_EPOCH}_lb{TARGET_LABEL}_num{MAX}_patchsize{PATCH_SIZE}.csv"
     report = open(os.path.join(report_save_dir, report_save_name), "w")
     success_rate_targeted = round(data["targeted_patch_successful_rate"][()], 3)
     success_rate_random = round(data["random_patch_successful_rate"][()], 3)
-    report.write(f"ID,ground_truth"
-                 f"chip_out, sim_out"
+    report.write(f"ID,ground_truth,"
+                 f"chip_out,sim_out,"
                  f"chip_out_attacked_targeted,chip_out_attacked_random,"  # attack result on-chip 
-                 f"sim_out_attacked_targeted,sim_out_attacked_random")  # attack result simulated
+                 f"sim_out_attacked_targeted,sim_out_attacked_random\n")  # attack result simulated
 
     # - Start testing
     counter = SNNSynOpCounter(snn)
