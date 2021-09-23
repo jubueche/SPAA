@@ -48,8 +48,7 @@ def raster_to_spiketrain(added_to_raster, dt, start_t):
     return added_spikes
 
 
-def attack_on_spiketrain(patch, spiketrain):
-    dt = 1000
+def attack_on_spiketrain(patch, spiketrain, dt):
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
         spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
@@ -84,6 +83,7 @@ def attack_on_spiketrain(patch, spiketrain):
 
 if __name__ == "__main__":
     MAX = 50
+    dt = 500
     # - Dataloader of spiketrains (not rasters!)
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
@@ -95,14 +95,14 @@ if __name__ == "__main__":
     patches_data_loader_train = IBMGesturesDataLoader().get_data_loader(
         dset="train",
         batch_size=1,
-        dt=1000,
+        dt=dt,
         num_workers=0
     )
     # - Get the rasterized dataloader also for the patches
     patches_data_loader_test = IBMGesturesDataLoader().get_data_loader(
         dset="test",
         batch_size=1,
-        dt=1000,
+        dt=dt,
         num_workers=0
     )
 
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         reset_states(snn)
         # raster data for sinabs
         raster = create_raster_from_xytp(
-            spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
+            spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
         out_sinabs = snn(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
         out_label = torch.argmax(out_sinabs).item()
 
@@ -184,9 +184,9 @@ if __name__ == "__main__":
         if out_label == label:
             correct += 1
             print("target patch: ")
-            attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain)
+            attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain, dt)
             print("random patch: ")
-            attacked_spk_random = attack_on_spiketrain(return_dict_patches["patch_random"], spiketrain)
+            attacked_spk_random = attack_on_spiketrain(return_dict_patches["patch_random"], spiketrain, dt)
 
             if attacked_spk is None:
                 continue
