@@ -10,6 +10,6 @@
 **/MNIST
 **/MNIST.tar.gz
 **/Gestures.zip
-**/Gestures/gesture_dataset_200ms
-**/Gestures/gesture_dataset_200ms.zip
+**/Gestures/gesture_dataset_200ms*
 .python-version
+*.mp4
