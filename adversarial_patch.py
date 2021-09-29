@@ -51,7 +51,7 @@ def init_patch_circle(
     if init == 'zeros':
         patch_values = torch.zeros(size=patch_mask.shape, device=device) * patch_mask
     else:
-        patch_values = (4 * torch.rand(size=patch_mask.shape, device=device) - 2) * patch_mask
+        patch_values = (2 * torch.rand(size=patch_mask.shape, device=device) - 1) * patch_mask
     return {
         'angle':0,
         'cx':0,
@@ -312,6 +312,7 @@ def adversarial_patch(
         "pert_total": patch["patch_values"],
         "patch_mask": patch["patch_mask"],
         "patch":patch,
+        "patch_random": patch_random,
         "elapsed_time": time.time()-t0,
         "success_rate_targeted": success_rate_targeted,
         "success_rate_random": success_rate_random
