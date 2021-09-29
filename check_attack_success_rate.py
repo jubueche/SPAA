@@ -15,6 +15,7 @@ if __name__ == "__main__":
         try:
             with open(os.path.join(data_dir, csv_file)) as f:
                 lines = f.readlines()
+                consistent_prediction_sim_chip = 0
                 success_sample_targeted_chip = 0  # number of success attack testing samples (on-chip)
                 success_sample_random_chip = 0
                 success_sample_targeted_sim = 0  # number of success attack testing samples (simulated)
@@ -27,18 +28,20 @@ if __name__ == "__main__":
                     data = [int(each) for each in data]
                     _, ground_truth, chip_out, sim_out, chip_out_attacked_targeted, chip_out_attacked_random, sim_out_attacked_targeted, sim_out_attacked_random = data
                     if ground_truth == target_label: continue
+                    if chip_out == sim_out: consistent_prediction_sim_chip += 1
                     if chip_out_attacked_targeted == target_label: success_sample_targeted_chip += 1
                     if chip_out_attacked_random == target_label: success_sample_random_chip += 1
                     if sim_out_attacked_targeted == target_label: success_sample_targeted_sim += 1
                     if sim_out_attacked_random == target_label: success_sample_random_sim += 1
 
                     total_sample += 1
+                consistent_prediction_sim_chip = round(consistent_prediction_sim_chip / total_sample, 4)
                 success_rate_targeted_chip = round(success_sample_targeted_chip / total_sample, 4)
                 success_rate_random_chip = round(success_sample_random_chip / total_sample, 4)
                 success_rate_targeted_sim = round(success_sample_targeted_sim / total_sample, 4)
                 success_rate_random_sim = round(success_sample_random_sim / total_sample, 4)
                 
-                results.append((int(numbers[1]), success_rate_targeted_chip, success_rate_random_chip, success_rate_targeted_sim, success_rate_random_sim))
+                results.append((int(numbers[1]), consistent_prediction_sim_chip, success_rate_targeted_chip, success_rate_random_chip, success_rate_targeted_sim, success_rate_random_sim))
                 print(f"Epoch:{epoch}| Label: {target_label}"
                       f"| Target Patch Success Rate(on-chip): {success_rate_targeted_chip}"
                       f"| Random Patch Success Rate(on-chip): {success_rate_random_chip}"
@@ -50,7 +53,7 @@ if __name__ == "__main__":
     f = open(data_dir+f'/ep{numbers[0]}_lbALL_num{numbers[2]}_patchsize{numbers[3]}.csv', 'w')
     writer = csv.writer(f)
 
-    writer.writerow(("Label", "Target Patch Success Rate(on-chip)", "Random Patch Success Rate(on-chip)",\
+    writer.writerow(("Label", "Simulation/Chip consistency on original prediction", "Target Patch Success Rate(on-chip)", "Random Patch Success Rate(on-chip)",\
                      "Target Patch Success Rate(Simulate)", "Random Patch Success Rate(Simulate)"))
     
     sorted_by_label = sorted(results, key=lambda tup: tup[0])

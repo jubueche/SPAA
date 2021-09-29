@@ -3,6 +3,8 @@ import numpy as np
 import sys
 import h5py
 import os
+from sys import platform
+
 
 # software to interact with dynapcnn and data
 from aermanager.preprocess import create_raster_from_xytp
@@ -88,7 +90,7 @@ if __name__ == "__main__":
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
         shuffle=True,
-        num_workers=0, # - Needs to be set to 0 on MacOS
+        num_workers= 4 if platform == "linux" else 0, # - Needs to be set to 0 on MacOS
     )  # - Can vary
 
     # - Get the dataloader that we need for the patches
@@ -96,14 +98,14 @@ if __name__ == "__main__":
         dset="train",
         batch_size=1,
         dt=dt,
-        num_workers=0
+        num_workers= 4 if platform == "linux" else 0
     )
     # - Get the rasterized dataloader also for the patches
     patches_data_loader_test = IBMGesturesDataLoader().get_data_loader(
         dset="test",
         batch_size=1,
         dt=dt,
-        num_workers=0
+        num_workers= 4 if platform == "linux" else 0
     )
 
     # - Preparing the model
@@ -116,7 +118,7 @@ if __name__ == "__main__":
     # - Hyperparameter for the patches
     n_epochs = int(sys.argv[1])
     patch_type = 'circle'
-    input_shape = (200, 2, 128, 128)
+    input_shape = (200000 // dt, 2, 128, 128)
     patch_size = float(sys.argv[3])
     target_label = int(sys.argv[2])
     max_iter = 20 # - Number of samples per epoch
