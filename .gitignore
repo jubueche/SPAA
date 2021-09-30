@@ -1,3 +1,8 @@
+attach_patches
+attack_result_csv
+data.tar.xz
+*.log
+*.h5
 **/Test
 **/Train
 **/test_DS*

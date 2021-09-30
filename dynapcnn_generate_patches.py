@@ -1,6 +1,10 @@
 import torch
 import numpy as np
+import sys
 import h5py
+import os
+from sys import platform
+
 
 # software to interact with dynapcnn and data
 from aermanager.preprocess import create_raster_from_xytp
@@ -46,8 +50,7 @@ def raster_to_spiketrain(added_to_raster, dt, start_t):
     return added_spikes
 
 
-def attack_on_spiketrain(patch, spiketrain):
-    dt = 2000
+def attack_on_spiketrain(patch, spiketrain, dt):
     # first, we need to rasterize the spiketrain
     raster = create_raster_from_xytp(
         spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
@@ -60,8 +63,11 @@ def attack_on_spiketrain(patch, spiketrain):
     patch = transform_circle(patch, target_label, device=DEVICE)
 
     # - Create adversarial example
+    if patch['patch_values'].shape != raster.shape:
+        raster = torch.cat((raster, torch.zeros((patch['patch_values'].shape[0] - raster.shape[0], *raster.shape[1:]), device=raster.device)))      
     attacked_raster = (1. - patch['patch_mask']) * raster + patch['patch_values']
-    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
+#     attacked_raster = torch.round(torch.clamp(attacked_raster, 0., max_num_spikes))
+    attacked_raster = torch.round(torch.clamp(attacked_raster, 0., 1))
     # now we only look at where spikes were ADDED (heuristically!)
     diff = attacked_raster - raster
     added_to_raster = torch.clamp(diff, min=0)
@@ -81,26 +87,27 @@ def attack_on_spiketrain(patch, spiketrain):
 
 if __name__ == "__main__":
     MAX = 50
+    dt = 500
     # - Dataloader of spiketrains (not rasters!)
     data_loader_test = IBMGesturesDataLoader().get_spiketrain_dataset(
         dset="test",
         shuffle=True,
-        num_workers=0, # - Needs to be set to 0 on MacOS
+        num_workers= 4 if platform == "linux" else 0, # - Needs to be set to 0 on MacOS
     )  # - Can vary
 
     # - Get the dataloader that we need for the patches
     patches_data_loader_train = IBMGesturesDataLoader().get_data_loader(
         dset="train",
         batch_size=1,
-        dt=2000,
-        num_workers=0
+        dt=dt,
+        num_workers= 4 if platform == "linux" else 0
     )
     # - Get the rasterized dataloader also for the patches
     patches_data_loader_test = IBMGesturesDataLoader().get_data_loader(
         dset="test",
         batch_size=1,
-        dt=2000,
-        num_workers=0
+        dt=dt,
+        num_workers= 4 if platform == "linux" else 0
     )
 
     # - Preparing the model
@@ -111,11 +118,11 @@ if __name__ == "__main__":
     gesture_classifier = gesture_classifier.to(DEVICE)
 
     # - Hyperparameter for the patches
-    n_epochs = 5
+    n_epochs = int(sys.argv[1])
     patch_type = 'circle'
-    input_shape = (100,2,128,128)
-    patch_size = 0.05
-    target_label = 8
+    input_shape = (200000 // dt, 2, 128, 128)
+    patch_size = float(sys.argv[3])
+    target_label = int(sys.argv[2])
     max_iter = 20 # - Number of samples per epoch
     eval_after = -1 # - Evaluate after X samples, -1 means never
     max_iter_test = 100
@@ -141,14 +148,19 @@ if __name__ == "__main__":
     )
 
     # Prepare file for saving
-    savef = h5py.File("./attacks_patches.h5", "w")
+    if not os.path.exists("./attack_patches"): os.makedirs("./attack_patches")
+    savef = h5py.File(f"./attack_patches/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
+    saved_attk_random = savef.create_group("attacked_spiketrains_random")
     ground_truth = savef.create_dataset("ground_truth", (MAX, ), dtype="<u1")
     sinabs_label = savef.create_dataset("sinabs_label", (MAX, ), dtype="<u1")
     attack_successful = savef.create_dataset("attack_successful", (MAX, ), dtype="?")
     n_spikes_orig = savef.create_dataset("n_spikes_orig", (MAX,), dtype="<i4")
     n_spikes_attk = savef.create_dataset("n_spikes_attk", (MAX,), dtype="<i4")
+
+    savef.create_dataset("random_patch_successful_rate", data=return_dict_patches["success_rate_random"])
+    savef.create_dataset("targeted_patch_successful_rate", data=return_dict_patches["success_rate_targeted"])
 
     # - Start testing
     correct = 0
@@ -165,7 +177,7 @@ if __name__ == "__main__":
         reset_states(snn)
         # raster data for sinabs
         raster = create_raster_from_xytp(
-            spiketrain, dt=1000, bins_x=np.arange(129), bins_y=np.arange(129))
+            spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
         out_sinabs = snn(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
         out_label = torch.argmax(out_sinabs).item()
 
@@ -175,7 +187,10 @@ if __name__ == "__main__":
 
         if out_label == label:
             correct += 1
-            attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain)
+            print("target patch: ")
+            attacked_spk = attack_on_spiketrain(return_dict_patches["patch"], spiketrain, dt)
+            print("random patch: ")
+            attacked_spk_random = attack_on_spiketrain(return_dict_patches["patch_random"], spiketrain, dt)
 
             if attacked_spk is None:
                 continue
@@ -183,6 +198,7 @@ if __name__ == "__main__":
                 attack_reports_success += 1
                 attack_successful[i] = True
                 saved_attk.create_dataset(str(i), data=attacked_spk, compression="lzf")
+                saved_attk_random.create_dataset(str(i), data=attacked_spk_random, compression="lzf")
                 n_spikes_attk[i] = len(attacked_spk)
 
     print("Accuracy in simulation:", correct / MAX)
