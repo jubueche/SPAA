@@ -91,7 +91,7 @@ if __name__ == "__main__":
         report.write(f"ID,ground_truth,chip_out,chip_out_attacked,chip_out_attacked_random,"
                      f"targeted_patch_success_rate_simulation: {success_rate_targeted}, random_patch_success_rate_simulation: {success_rate_random}\n")
     else:
-        report = open(f"report_0.3.csv", "w")
+        report = open(f"Resources/Results/report_0.3.csv", "w")
         report.write("ID,ground_truth,chip_out,chip_out_attacked\n")
 
     # - Start testing
