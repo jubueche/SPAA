@@ -42,7 +42,7 @@ if __name__ == "__main__":
     t0 = time.time()
     FLAGS = arch.get_flags()
     base_path = path.dirname(path.abspath(__file__))
-    model_save_path = path.join(base_path, "BPTT_small_trained_martino.pth")
+    model_save_path = path.join(base_path, "BPTT_small_trained.pth")
 
     batch_size = 20
     dt = 2000

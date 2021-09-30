@@ -34,7 +34,7 @@ def reset_states(net):
 def spiketrain_forward(spiketrain, factory):
     input_events = factory.xytp_to_events(
         spiketrain, layer=layers_ordering[0])
-    
+
     evs_out = hardware_compatible_model(input_events)
     evs_out = io.events_to_xytp(evs_out, layer=layers_ordering[-1])
     print("N. spikes from chip:", len(evs_out))
@@ -48,7 +48,7 @@ def spiketrain_forward(spiketrain, factory):
 
 if __name__ == "__main__":
     # - Preparing the model
-    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth", device=DEVICE)
+    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_200ms_2ms.pth", device=DEVICE)
     snn = gesture_classifier.model
     snn.eval()
     gesture_classifier.eval()
@@ -95,7 +95,7 @@ if __name__ == "__main__":
             # Normal spiketrain
             # resetting states
             factory = ChipFactory(DYNAPCNN_HARDWARE)
-            first_layer_idx = hardware_compatible_model.chip_layers_ordering[0] 
+            first_layer_idx = hardware_compatible_model.chip_layers_ordering[0]
             # forward pass on the chip
             hardware_compatible_model.reset_states()
             out_label = spiketrain_forward(spiketrain, factory)

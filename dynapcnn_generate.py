@@ -105,7 +105,7 @@ if __name__ == "__main__":
     )  # - Can vary
 
     # - Preparing the model
-    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth")
+    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_200ms_2ms.pth")
     snn = gesture_classifier.model
     snn.eval()
     gesture_classifier.eval()
