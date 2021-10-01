@@ -89,12 +89,12 @@ if __name__ == "__main__":
 #     normalised_model = from_model(ann, input_shape=input_shape, add_spiking_output=False, synops=False)
 #     snn = normalised_model.spiking_model
 #     snn.eval()
-    
-    with torch.no_grad():
-        snn[0].weight *= 0.5
-        snn[3].weight *= 0.5
-        snn[7].weight *= 0.5
-#     import ipdb; ipdb.set_trace()
+
+#     scale_factor = 0.4
+#     with torch.no_grad():
+#         snn[0].weight *= scale_factor
+#         snn[3].weight *= scale_factor
+#         snn[7].weight *= scale_factor
 
     hardware_compatible_model = DynapcnnCompatibleNetwork(
         snn,
