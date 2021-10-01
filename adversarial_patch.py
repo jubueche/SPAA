@@ -137,6 +137,9 @@ def test(
         patch = transform_circle(patch, target_label, device=device)
 
         # - Create adversarial example
+        X = X.squeeze()
+        if patch['patch_values'].shape != X.shape:
+            X = torch.cat((X, torch.zeros((patch['patch_values'].shape[0] - X.shape[0], *X.shape[1:]), device=X.device)))  
         X_adv = (1. - patch['patch_mask']) * X + patch['patch_values']
         X_adv = torch.round(torch.clamp(X_adv, 0., 1.))
         reset(net)
