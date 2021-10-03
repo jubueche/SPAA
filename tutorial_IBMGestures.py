@@ -1,10 +1,7 @@
 import torch
-from networks import load_gestures_snn
 from sparsefool import sparsefool, frame_based_sparsefool
-from utils import get_prediction, plot_attacked_prob
+from utils import plot_attacked_prob
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from functools import partial
-from copy import deepcopy
 from architectures import IBMGestures
 from datajuicer import run
 import numpy as np

@@ -6,7 +6,7 @@ import random
 from networks import train_ann_binary_mnist, get_prob_net_continuous
 from sparsefool import sparsefool
 from attacks import non_prob_fool, prob_fool, SCAR
-from utils import get_prediction, reparameterization_bernoulli
+from utils import get_prediction
 
 # - Seed
 random.seed(42)
