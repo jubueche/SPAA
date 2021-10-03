@@ -133,7 +133,7 @@ class AbstractGestureClassifier(nn.Module):
 class IBMGesturesBPTT(AbstractGestureClassifier):
     def __init__(self):
         super().__init__()
-        specknet_ann = nn.Sequential(
+        ann = nn.Sequential(
             nn.Conv2d(2, 8, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),  # 8, 64, 64
             nn.BatchNorm2d(8),
             nn.ReLU(),
@@ -152,53 +152,7 @@ class IBMGesturesBPTT(AbstractGestureClassifier):
             nn.ReLU(),
             nn.Linear(64, 11, bias=False),
         )
-        self.model = from_model(specknet_ann, threshold=1).spiking_model
-
-
-class SpeckNetA_Gestures(AbstractGestureClassifier):
-    def __init__(self, file="data/Gestures/Gestures_SpeckNetA_framebased.pth"):
-        super().__init__()
-
-        self.seq = nn.Sequential(
-            # core 0
-            nn.Conv2d(2, 16, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 1
-            nn.Conv2d(16, 16, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 2
-            nn.Conv2d(16, 32, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 7
-            nn.Conv2d(32, 32, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 4
-            nn.Conv2d(32, 64, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 5
-            nn.Conv2d(64, 64, kernel_size=(3, 3), padding=(1, 1), bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2)),
-            # core 6
-            nn.Dropout2d(0.5),
-            nn.Conv2d(64, 256, kernel_size=(2, 2), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 3
-            nn.Dropout2d(0.5),
-            nn.Conv2d(256, 128, kernel_size=(1, 1), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # core 8
-            nn.Conv2d(128, 11, kernel_size=(1, 1), padding=(0, 0), bias=False),
-            nn.ReLU(),
-            # nn.Flatten(),  # otherwise torch complains
-        )
-        if file is not None:
-            self.load_state_dict(torch.load(file))
-        self.model = from_model(self.seq).spiking_model
+        self.model = from_model(ann, threshold=1).spiking_model
 
 
 class GestureClassifierSmall(AbstractGestureClassifier):

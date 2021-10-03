@@ -6,7 +6,7 @@ import os.path as path
 from architectures import IBMGestures as arch
 from architectures import log
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from networks import SpeckNetA_Gestures
+from networks import IBMGesturesBPTT
 from loss import robust_loss
 import torch
 import time
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         model = load_gestures_snn("data/Gestures/pretrain.model")
     else:
         # - Create model
-        model = SpeckNetA_Gestures(file=None).to(device)
+        model = IBMGesturesBPTT(file=None).to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
