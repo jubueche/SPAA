@@ -1,5 +1,5 @@
 import torch
-from sparsefool import sparsefool
+from sparsefool import sparsefool, frame_based_sparsefool
 from utils import plot_attacked_prob
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from architectures import IBMGestures
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     snn = grid[0]['snn']
 
     # - Attack parameters
-    lambda_ = 2.0
+    lambda_ = 1.0
     max_hamming_distance = np.inf
 
     for idx, (X0, target) in enumerate(data_loader_test):
@@ -36,13 +36,14 @@ if __name__ == "__main__":
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
 
-        return_dict_sparse_fool = sparsefool(
+        return_dict_sparse_fool = frame_based_sparsefool(
             x_0=X0,
             net=snn,
             max_hamming_distance=max_hamming_distance,
             lambda_=lambda_,
             epsilon=0.0,
             overshoot=0.02,
+            n_attack_frames=3,
             step_size=0.05,
             device=device,
             verbose=True,
