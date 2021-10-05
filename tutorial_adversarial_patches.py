@@ -35,13 +35,13 @@ if __name__ == "__main__":
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
         dset="test",
         shuffle=True,
-        num_workers=4,
+        num_workers=0,
         batch_size=1)  # - Can vary
     
     data_loader_train = ibm_gesture_dataloader.get_data_loader(
         dset="train",
         shuffle=True,
-        num_workers=4,
+        num_workers=0,
         batch_size=1)
 
     grid = [IBMGestures.make()]

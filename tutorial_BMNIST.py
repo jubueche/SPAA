@@ -130,7 +130,7 @@ for idx, (data, target) in enumerate(data_loader_test):
     print(f"Model: {int(model_pred)} Boosted ProbFool: {int(model_pred_prob_boosted)} with L_0 = {num_flipped_boosted}")
     print(f"Model: {int(model_pred)} ProbFool: {int(model_pred_prob)} with L_0 = {num_flipped}")
 
-    # break
+    break
 
 plt.figure(figsize=(20, 7))
 plt.subplot(171)
@@ -151,5 +151,4 @@ plt.title(f"Non-probFool: {int(model_pred_non_prob)}")
 plt.subplot(176)
 plt.imshow(torch.squeeze(round_fn(X_adv_sparse_fool).cpu()))
 plt.title(f"SparseFool-Non-Prob: {int(model_pred_sparsefool)}")
-plt.subplot(177)
 plt.show()
