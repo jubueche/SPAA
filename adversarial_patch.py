@@ -171,6 +171,8 @@ def train(
     label_conf,
     max_count,
     eval_after,
+    eta,
+    lambda_,
     device
 ):
     for idx, (X, target) in enumerate(train_data_loader):
@@ -197,7 +199,9 @@ def train(
             patch,
             target_label,
             label_conf,
-            max_count
+            max_count,
+            eta,
+            lambda_
         )
 
         if idx % eval_after == 1:
@@ -218,7 +222,9 @@ def attack(
     patch,
     target_label,
     label_conf,
-    max_count
+    max_count,
+    eta=1.0,
+    lambda_=0.0
 ):
     reset(net)
     f_image = F.log_softmax(net.forward(Variable(X, requires_grad=False)))
@@ -232,11 +238,12 @@ def attack(
         X_adv = Variable(X_adv.data, requires_grad=True)
         reset(net)
         adv_out = F.log_softmax(net.forward(X_adv))
-        Loss = -adv_out[0][target_label]
+        Loss = -adv_out[0][target_label] + lambda_ * torch.clamp(patch['patch_mask'] * patch['patch_values'],0.0,1.0).abs().sum()
         Loss.backward()
         adv_grad = X_adv.grad.clone()
         X_adv.grad.data.zero_()
-        patch['patch_values'] = patch['patch_mask'] * (patch['patch_values'] - adv_grad.squeeze())
+        patch['patch_values'] = patch['patch_mask'] * (patch['patch_values'] - eta * adv_grad.squeeze())
+        sparsity = torch.round(torch.clamp(patch['patch_mask'] * patch['patch_values'],0.0,1.0)).sum()
         X_adv = (1. - patch['patch_mask']) * X + patch['patch_values']
         X_adv = torch.round(torch.clamp(X_adv, 0., 1.))
         reset(net)
@@ -245,7 +252,8 @@ def attack(
 
         print("Count ",count," Target conf ",
                 float(target_conf)," label_conf ",label_conf,
-                " Max(Abs(.)) ",float(torch.max(torch.abs(patch['patch_values']))))
+                " Max(Abs(.)) ",float(torch.max(torch.abs(patch['patch_values']))),
+                " Sparsity ", sparsity)
 
         if count >= max_count:
             break
@@ -266,7 +274,9 @@ def adversarial_patch(
     label_conf,
     max_count,
     eval_after,
-    device  
+    eta=1.0,
+    lambda_=0.0,
+    device=None  
 ):
     t0 = time.time()
 
@@ -285,7 +295,9 @@ def adversarial_patch(
                     label_conf,
                     max_count,
                     eval_after,
-                    device
+                    eta=eta,
+                    lambda_=lambda_,
+                    device=device
                 )
 
     patch_random = init_patch(patch_type, patch_size, input_shape, 'random', device)
