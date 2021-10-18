@@ -54,8 +54,8 @@ if __name__ == "__main__":
     n_epochs = 5
     patch_type = 'circle'
     input_shape = (20,2,128,128)
-    patch_size = 0.05
-    target_label = 10
+    patch_size = 0.025
+    target_label = 3
     max_iter = 20 # - Number of samples per epoch
     eval_after = -1 # - Evaluate after X samples
     max_iter_test = 100
