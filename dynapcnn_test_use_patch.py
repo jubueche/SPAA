@@ -54,7 +54,7 @@ def spiketrain_forward(spiketrain, factory):
 
 if __name__ == "__main__":
     # - Preparing the model
-    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_martino_200ms_2ms.pth", device=DEVICE)
+    gesture_classifier = GestureClassifierSmall("BPTT_small_trained_200ms_2ms.pth", device=DEVICE)
     gesture_classifier = gesture_classifier.to(DEVICE)
     ann = gesture_classifier.seq
     ann.eval()
@@ -65,12 +65,12 @@ if __name__ == "__main__":
     gesture_classifier.eval()
     # convert to chip-compatible spiking network (discretized etc.)
     input_shape = (2, 128, 128)
-    
+
     # Get file
-    attack_file_name = f"attacks_patches_ep{N_EPOCH}_lb{TARGET_LABEL}_num{MAX}_patchsize{PATCH_SIZE}.h5"
+    attack_file_name = f"attacks_patches_ep{N_EPOCH}_lb{TARGET_LABEL}_num{MAX}_patchsize{str(PATCH_SIZE).split('.')[1]}.h5"
     attack_file = os.path.join("./attack_patches", attack_file_name)
     print(f"getting data from file {attack_file_name}")
-    
+
     # Read data from file
     data = h5py.File(attack_file, "r")
     successful_attacks = np.where(data["attack_successful"])[0]
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 #     param_layers = [name for name, child in ann.cpu().named_children() if isinstance(child, (nn.Conv2d, nn.Linear))]
 #     input_shape=(2, 128, 128)
 #     batch_size = 10
-#     frames = np.zeros((batch_size, *input_shape)) 
+#     frames = np.zeros((batch_size, *input_shape))
 #     for i in range(batch_size):
 #         spikes = data["original_spiketrains"][str(i)]
 #         raster = create_raster_from_xytp(spikes, dt=500, bins_x=np.arange(129), bins_y=np.arange(129))
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     success_rate_random = round(data["random_patch_successful_rate"][()], 3)
     report.write(f"ID,ground_truth,"
                  f"chip_out,sim_out,"
-                 f"chip_out_attacked_targeted,chip_out_attacked_random,"  # attack result on-chip 
+                 f"chip_out_attacked_targeted,chip_out_attacked_random,"  # attack result on-chip
                  f"sim_out_attacked_targeted,sim_out_attacked_random\n")  # attack result simulated
 
     # - Start testing
