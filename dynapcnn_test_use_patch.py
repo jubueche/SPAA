@@ -102,6 +102,12 @@ if __name__ == "__main__":
         input_shape=input_shape,
     )
 
+    quantized_model = DynapcnnCompatibleNetwork(
+        snn,
+        discretize=True,
+        input_shape=input_shape,
+    )
+
     # Apply model to device
     layers_ordering = [0, 1, 2, 3]  # [0, 1, 2, 7, 4, 5, 6, 3, 8]
 
@@ -149,21 +155,21 @@ if __name__ == "__main__":
 
         """Simulation Test"""
         dt = 500
-        reset_states(snn)
+        reset_states(quantized_model.sequence)
         # raster data for sinabs
         raster = create_raster_from_xytp(spiketrain, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
-        out_sinabs = snn(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
+        out_sinabs = quantized_model(torch.tensor(raster).to(DEVICE)).squeeze().sum(0)
         out_label_sim = torch.argmax(out_sinabs).item()
         # attack (targeted) and get the attacked result for simulation
-        reset_states(snn)
+        reset_states(quantized_model.sequence)
         raster_attacked = create_raster_from_xytp(attacked_spk, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
-        out_sinabs_targeted = snn(torch.tensor(raster_attacked).to(DEVICE)).squeeze().sum(0)
+        out_sinabs_targeted = quantized_model(torch.tensor(raster_attacked).to(DEVICE)).squeeze().sum(0)
         print(f"N. spikes from Sinabs: {out_sinabs_targeted.sum()}, activations for targeted attack: {out_sinabs_targeted.detach().numpy().astype(int)}")
         out_label_attacked_targeted_sim = torch.argmax(out_sinabs_targeted).item()
         # attack (randomly) and get the attacked result for simulation
-        reset_states(snn)
+        reset_states(quantized_model.sequence)
         raster_random = create_raster_from_xytp(attacked_spk_random, dt=dt, bins_x=np.arange(129), bins_y=np.arange(129))
-        out_sinabs_random = snn(torch.tensor(raster_random).to(DEVICE)).squeeze().sum(0)
+        out_sinabs_random = quantized_model(torch.tensor(raster_random).to(DEVICE)).squeeze().sum(0)
         out_label_attacked_random_sim = torch.argmax(out_sinabs_random).item()
 
         """write results into report file"""
