@@ -243,7 +243,7 @@ def attack(
         adv_out = F.log_softmax(net.forward(X_adv))
         Loss = -adv_out[0][target_label] + lambda_ * torch.clamp(patch['patch_mask'] * patch['patch_values'],0.0,1.0).abs().sum()
         Loss.backward()
-        adv_grad = X_adv.grad.clone()
+        adv_grad = X_adv.grad.clone() + lambda_ * torch.clamp(patch['patch_mask'] * patch['patch_values'],0.0,1.0).sign()
         X_adv.grad.data.zero_()
         patch['patch_values'] = patch['patch_mask'] * (patch['patch_values'] - eta * adv_grad.squeeze())
         sparsity = torch.round(torch.clamp(patch['patch_mask'] * patch['patch_values'],0.0,1.0)).sum()
