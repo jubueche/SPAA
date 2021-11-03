@@ -144,12 +144,15 @@ if __name__ == "__main__":
         label_conf=label_conf,
         max_count=max_count,
         eval_after=eval_after,
-        device=DEVICE
+        device=DEVICE,
+        lambda_=0.0005,
+        eta=1.0
     )
 
     # Prepare file for saving
-    if not os.path.exists("./attack_patches"): os.makedirs("./attack_patches")
-    savef = h5py.File(f"./attack_patches/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
+    save_dir = "./attack_patches"
+    if not os.path.exists(save_dir): os.makedirs(save_dir)
+    savef = h5py.File(f"{save_dir}/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
     saved_attk_random = savef.create_group("attacked_spiketrains_random")
