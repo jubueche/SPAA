@@ -233,6 +233,9 @@ def attack(
     f_image = F.log_softmax(net.forward(Variable(X, requires_grad=False)))
     target_conf = f_image[0][target_label]
 
+    X = X.squeeze()
+    if patch['patch_values'].shape != X.shape:
+        X = torch.cat((X, torch.zeros((patch['patch_values'].shape[0] - X.shape[0], *X.shape[1:]), device=X.device)))  
     X_adv = (1. - patch['patch_mask']) * X + patch['patch_mask'] * patch['patch_values']
     X_adv = torch.round(torch.clamp(X_adv, 0., 1.))
     count = 0

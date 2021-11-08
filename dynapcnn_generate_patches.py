@@ -131,11 +131,15 @@ if __name__ == "__main__":
     max_count = 100
 
     # - Generate quantized model
+    snn = snn.to("cpu")
     q_model = DynapcnnCompatibleNetwork(
         snn,
         discretize=True,
         input_shape=input_shape[1:]
     )
+    q_model = q_model.to(DEVICE)
+    snn = snn.to(DEVICE)
+    
     weights_orig = [v.data for n,v in gesture_classifier.model.named_parameters()]
     scales = []
     for w_o in weights_orig:
