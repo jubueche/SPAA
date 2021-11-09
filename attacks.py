@@ -118,7 +118,9 @@ def non_prob_fool(
     rand_minmax,
     boost=False,
     early_stopping=False,
-    verbose=False
+    verbose=False,
+    batch=False,
+    clamp=True
 ):
     """
     Perform non-probabilistic PGD on binary input.
@@ -135,46 +137,66 @@ def non_prob_fool(
     assert norm in [np.inf, 2], "Norm not supported"
     assert eps > eps_iter, "Eps must be bigger than eps_iter"
     assert eps >= rand_minmax, "rand_minmax should be smaller than or equal to eps"
-    assert ((X0 == 0.0) | (X0 == 1.0)).all(), "X0 must be 0 or 1"
+    if clamp:
+        assert ((X0 == 0.0) | (X0 == 1.0)).all(), "X0 must be 0 or 1"
     t0 = time.time()
     X_adv = X0.clone()
 
-    y = get_prediction(net, X0, mode="non_prob")
+    y = get_prediction(net, X0, mode="non_prob", batch=batch)
     eta = torch.zeros_like(X0).uniform_(0, rand_minmax)
-    eta = clip_eta(eta, norm, eps)
+    if batch:
+        for b in range(eta.shape[0]):
+            eta[b] = clip_eta(torch.reshape(eta[b], (1,) + eta.shape[1:]), norm, eps)
+    else:
+        eta = clip_eta(eta, norm, eps)
     X_adv_cont = X0 * (1 - eta) + (1 - X0) * eta
-    X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
+    if clamp:
+        X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
 
     for i in range(N_pgd):
-        # if verbose:
-        #     print(f"Attack {i}/{N_pgd}")
+        if verbose:
+            print("Attack %d/%d Max diff %.3f Num flipped %d" % (i,N_pgd,(X0 - X_adv_cont).abs().max(),((X0 - X_adv_cont).abs() >= 0.5).int().sum()))
 
-        X_adv_tmp = get_mc_P_adv(net, round_fn(X_adv_cont), y, eps_iter, norm, loss_fn, 1)
+        X_adv_tmp = get_mc_P_adv(net, round_fn(X_adv_cont), y, eps_iter, norm, None if batch else loss_fn, 1)
         eta_tmp = X_adv_tmp - round_fn(X_adv_cont)  # - Extract what was added to the rounded input
         X_adv_cont += eta_tmp
         eta = X_adv_cont - X0
-        eta = clip_eta(eta, norm, eps)
+        if batch:
+            for b in range(eta.shape[0]):
+                eta[b] = clip_eta(torch.reshape(eta[b], (1,) + eta.shape[1:]), norm, eps)
+        else:
+            eta = clip_eta(eta, norm, eps)
         X_adv_cont = X0 + eta
-        X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
-
-    deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
-    tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
-    tupled.sort(key=lambda a : a[0], reverse=True)
-    flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+        if clamp:
+            X_adv_cont = torch.clamp(X_adv_cont, 0.0, 1.0)
+    
     n_queries = 2 + N_pgd
-
-    X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping)
-    n_queries += n_queries_extra
-
+    if boost or early_stopping:
+        deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
+        tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+        tupled.sort(key=lambda a : a[0], reverse=True)
+        flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+        
+        X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping)
+        n_queries += n_queries_extra
+    else:
+        X_adv = round_fn(X_adv_cont)
+        if clamp:
+            X_adv = torch.clamp(X_adv, 0.0, 1.0)
+        L0 = (X_adv - X0).abs().sum()
+         
+    success_rate = 1. - (y == get_prediction(net, X_adv, mode="non_prob", batch=batch)).int().sum() / len(y)
+    if verbose:
+       print("Success rate %.3f L0 is %.3f" % (success_rate,L0))
     t1 = time.time()
     return_dict = {}
-    return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
+    return_dict["success"] = success_rate
     return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y
-    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob")
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob", batch=batch)
     return return_dict
 
 def prob_fool(

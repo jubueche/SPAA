@@ -13,7 +13,7 @@ import time
 from networks import load_gestures_snn
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def get_test_acc(data_loader, model):
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     t0 = time.time()
     FLAGS = arch.get_flags()
     base_path = path.dirname(path.abspath(__file__))
-    model_save_path = path.join(base_path, "BPTT_trained.pth")
+    model_save_path = path.join(base_path, "BPTT_trained_martino.pth")
 
     batch_size = FLAGS.batch_size
     dt = FLAGS.dt
@@ -72,9 +72,7 @@ if __name__ == "__main__":
         model.train()
         for batch_idx, (sample, target) in enumerate(data_loader_train):
             model.reset_states()
-            sample = sample.float()
-            # sample = torch.clamp(sample, 0.0, 1.0)
-            sample = sample.to(device)
+            sample = sample.float().to(device)
             target = target.long().to(device)
             loss = robust_loss(
                 model=model,
