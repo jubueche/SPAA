@@ -41,7 +41,7 @@ if __name__ == "__main__":
     t0 = time.time()
     FLAGS = arch.get_flags()
     base_path = path.dirname(path.abspath(__file__))
-    model_save_path = path.join(base_path, "BPTT_trained_martino.pth")
+    model_save_path = path.join(base_path, "Resources/Models/%d_model.pth" % FLAGS.session_id)
 
     batch_size = FLAGS.batch_size
     dt = FLAGS.dt
@@ -59,13 +59,19 @@ if __name__ == "__main__":
         print(FLAGS.boundary_loss)
         assert FLAGS.boundary_loss in ["trades", "madry"], "Unknown boundary loss"
         print("Loading pre-trained model...")
-        model = load_gestures_snn("data/Gestures/pretrain.model")
+        model = load_gestures_snn("BPTT_small_trained_200ms_2ms.pth")
     else:
         # - Create model
         model = SpeckNetA_Gestures(file=None).to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    # TODO Write function that returns robustness to SparseFool, given N number of test samples.
+    # TODO Evaluate with parameters from paper and check for same success rate
+    # TODO Repeated logging of robustness during training
+    # TODO Full robustness at end of training
+    # TODO Experiment for sweep of beta_robustness
 
     # - Begin the training
     for epoch in range(epochs):
@@ -102,6 +108,7 @@ if __name__ == "__main__":
         test_acc = get_test_acc(data_loader_test, model)
         print("Test acc. is %.4f" % (float(100*test_acc)))
         log(FLAGS.session_id, "test_acc", float(test_acc))
+        log(FLAGS.session_id, "done", True)
 
     # - Save the network
     torch.save(model.state_dict(), model_save_path)
