@@ -1,20 +1,19 @@
 """
 Train spiking model for IBMGestures
 """
+from adversarial_patch import attack
 from experiment_utils import *
 import os.path as path
 from architectures import IBMGestures as arch
 from architectures import log
 from dataloader_IBMGestures import IBMGesturesDataLoader
-from networks import SpeckNetA_Gestures
+from networks import GestureClassifierSmall, IBMGesturesBPTT, load_gestures_snn
 from loss import robust_loss
 import torch
 import time
-from networks import load_gestures_snn
 
 # - Set device
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-
 
 def get_test_acc(data_loader, model):
     model.eval()
@@ -54,24 +53,64 @@ if __name__ == "__main__":
         "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
         "test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
+    data_loader_test_robustness_test = ibm_gesture_dataloader.get_data_loader(
+        "test", shuffle=True, num_workers=4, batch_size=1, dt=dt)
 
     if FLAGS.boundary_loss != "None":
         print(FLAGS.boundary_loss)
         assert FLAGS.boundary_loss in ["trades", "madry"], "Unknown boundary loss"
         print("Loading pre-trained model...")
-        model = load_gestures_snn("BPTT_small_trained_200ms_2ms.pth")
+        model = GestureClassifierSmall("BPTT_small_trained_200ms_2ms.pth").to(device)
     else:
         # - Create model
-        model = SpeckNetA_Gestures(file=None).to(device)
+        model = GestureClassifierSmall(file=None).to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # TODO Write function that returns robustness to SparseFool, given N number of test samples.
+    print("Current test acc. is %.4f" % get_test_acc(data_loader_test, model=model))
+
     # TODO Evaluate with parameters from paper and check for same success rate
     # TODO Repeated logging of robustness during training
     # TODO Full robustness at end of training
     # TODO Experiment for sweep of beta_robustness
+
+    def get_sparsefool_robustness(model, N_samples, data_loader):
+        model.eval()
+        success = []; L0s = []
+        for batch_idx, (X, y) in enumerate(data_loader):
+            if batch_idx == N_samples:
+                break
+            X, y = X.to(device).float(), y.to(device).float()
+            pred_label = torch.argmax(model.forward(X).data).item()
+            if pred_label != y:
+                continue
+            attack_dict = sparsefool(
+                x_0=X,
+                net=model,
+                max_hamming_distance=int(1e6),
+                lb=0.0,
+                ub=X.max(),
+                lambda_=3.,
+                max_iter=15,
+                epsilon=0.02,
+                overshoot=0.02,
+                step_size=0.3,
+                max_iter_deep_fool=50,
+                device=device,
+                verbose=True
+            )
+            success.append(attack_dict["success"])
+            if not attack_dict["success"]:
+                L0s.append(int(1e6))
+            else:
+                L0s.append(attack_dict["L0"])
+        
+        model.train()
+        if success == []:
+            return 0.0,0.0
+        else:
+            return np.mean(success), np.median(L0s)
 
     # - Begin the training
     for epoch in range(epochs):
@@ -103,12 +142,26 @@ if __name__ == "__main__":
                 log(FLAGS.session_id, "training_accuracy", float(b_acc))
                 log(FLAGS.session_id, "loss", float(loss))
 
-        # - Evaluate on test set and print accuracy
-        print("Evaluating on test set...")
+        # - End epoch
+        # - Evaluate robustness
+        mean_success_rate, median_L0 = get_sparsefool_robustness(
+            model=model,
+            N_samples=10,
+            data_loader=data_loader_test_robustness_test
+        )
+        log(FLAGS.session_id, "mean_success_rate", mean_success_rate)
+        log(FLAGS.session_id, "median_L0", median_L0)
         test_acc = get_test_acc(data_loader_test, model)
-        print("Test acc. is %.4f" % (float(100*test_acc)))
-        log(FLAGS.session_id, "test_acc", float(test_acc))
-        log(FLAGS.session_id, "done", True)
+        print("Test acc. %.4f Robustness: Mean success rate: %.4f Median L0: %.4f" %\
+            (test_acc,mean_success_rate,median_L0))
+
+    # - End training
+    # - Evaluate on test set and print accuracy
+    print("Evaluating on test set...")
+    test_acc = get_test_acc(data_loader_test, model)
+    print("Test acc. is %.4f" % (float(100*test_acc)))
+    log(FLAGS.session_id, "test_acc", float(test_acc))
+    log(FLAGS.session_id, "done", True)
 
     # - Save the network
     torch.save(model.state_dict(), model_save_path)
