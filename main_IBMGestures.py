@@ -51,17 +51,11 @@ if __name__ == "__main__":
     ibm_gesture_dataloader = IBMGesturesDataLoader()
 
     data_loader_train = ibm_gesture_dataloader.get_data_loader(
-        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
+        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt, n_noise_events=FLAGS.noise_n_samples)
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
         "test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
     data_loader_test_robustness_test = ibm_gesture_dataloader.get_data_loader(
         "test", shuffle=True, num_workers=4, batch_size=1, dt=dt)
-
-    # - Generate transform for injecting random events
-    add_noise_transform = tonic.transforms.UniformNoise(
-        sensor_size=tonic.datasets.DVSGesture.sensor_size,
-        n_noise_events = FLAGS.noise_n_samples
-    )
 
     # - Generate the model
     model = IBMGesturesBPTT().to(device)
@@ -115,11 +109,10 @@ if __name__ == "__main__":
         for batch_idx, (sample, target) in enumerate(data_loader_train):
             model.reset_states()
             sample = sample.float().to(device)
-            noisy_sample = add_noise_transform(sample)
             target = target.long().to(device)
             loss = robust_loss(
                 model=model,
-                x_natural=noisy_sample,
+                x_natural=sample,
                 y=target,
                 optimizer=optimizer,
                 FLAGS=FLAGS,
