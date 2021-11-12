@@ -26,14 +26,12 @@ class IBMGesturesDataLoader:
                  save_to='./data', 
                  slicing_time_window=200000, 
                  slicing_overlap=150000, 
-                 n_noise_events=0,
                  slice_metadata_path='./metadata',
                  caching_path='./cache',
                 ):
         self.save_to = save_to
         self.slicing_time_window = slicing_time_window
         self.slicing_overlap = slicing_overlap
-        self.n_noise_events = n_noise_events
         self.slice_metadata_path = slice_metadata_path
         self.caching_path = caching_path
         # download data if not already on disk
@@ -41,14 +39,14 @@ class IBMGesturesDataLoader:
         tonic.datasets.DVSGesture(save_to=save_to, train=False)
 
     def get_data_loader(self, dset, shuffle=True, num_workers=4,
-                        batch_size=128, dt=2000):
+                        batch_size=128, dt=2000, n_noise_events=0):
         """
         Get the torch dataloader
         dset: "train" or "test"
         return dataloader
         """
         sensor_size = tonic.datasets.DVSGesture.sensor_size
-        noise_transform = tonic.transforms.UniformNoise(sensor_size=sensor_size, n_noise_events=self.n_noise_events)
+        noise_transform = tonic.transforms.UniformNoise(sensor_size=sensor_size, n_noise_events=n_noise_events)
         frame_transform = tonic.transforms.ToFrame(sensor_size=tonic.datasets.DVSGesture.sensor_size, time_window=dt)
         transform = tonic.transforms.Compose([noise_transform, frame_transform])
         
@@ -56,18 +54,19 @@ class IBMGesturesDataLoader:
         train_flag = True if dset=='train' else False
         dataset = tonic.datasets.DVSGesture(save_to=self.save_to, train=train_flag)
         metadata_path = f'{self.slice_metadata_path}/dvs_gesture/frames/{self.slicing_time_window//1000}ms/{dset}'
+        cache_path = f'{self.caching_path}/frames/{batch_size}batch_{dt}dt/{dset}'
 
         # trainset slices with overlap if enabled and applies noise and frame transform
         if train_flag:
             slicer = SliceByTime(time_window=self.slicing_time_window, overlap=self.slicing_overlap)
             sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=transform, metadata_path=metadata_path)
-            cached_dataset = CachedDataset(sliced_dataset, cache_path=f'{self.caching_path}/frames/{batch_size}batch_{dt}dt/{dset}')
+            cached_dataset = CachedDataset(sliced_dataset, cache_path=cache_path)
         # testset slices without overlap and only applies frame transform
         else:
             # import ipdb; ipdb.set_trace()
             slicer = SliceByTime(time_window=self.slicing_time_window, overlap=0)
             sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform, metadata_path=metadata_path)
-            cached_dataset = CachedDataset(sliced_dataset, cache_path=f'{self.caching_path}/frames/{batch_size}batch_{dt}dt/{dset}')
+            cached_dataset = CachedDataset(sliced_dataset, cache_path=cache_path)
         return DataLoader(cached_dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
 
     def get_spiketrain_dataset(self, dset, shuffle=True, num_workers=4):
