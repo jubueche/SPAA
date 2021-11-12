@@ -51,7 +51,7 @@ if __name__ == "__main__":
     ibm_gesture_dataloader = IBMGesturesDataLoader(n_noise_events=FLAGS.noise_n_samples)
 
     data_loader_train = ibm_gesture_dataloader.get_data_loader(
-        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
+        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt, n_noise_events=FLAGS.noise_n_samples)
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
         "test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
     data_loader_test_robustness_test = ibm_gesture_dataloader.get_data_loader(
