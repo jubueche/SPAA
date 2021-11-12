@@ -11,6 +11,7 @@ from networks import GestureClassifierSmall, IBMGesturesBPTT, load_gestures_snn
 from loss import robust_loss
 import torch
 import time
+import tonic
 
 # - Set device
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -24,7 +25,7 @@ def get_test_acc(data_loader, model):
             break
         X0 = X0.float()
         X0 = X0.to(device)
-        # X0 = torch.clamp(X0, 0.0, 1.0)
+        X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
         model.reset_states()
         out = model.forward(X0)
@@ -56,24 +57,19 @@ if __name__ == "__main__":
     data_loader_test_robustness_test = ibm_gesture_dataloader.get_data_loader(
         "test", shuffle=True, num_workers=4, batch_size=1, dt=dt)
 
-    if FLAGS.boundary_loss != "None":
-        print(FLAGS.boundary_loss)
-        assert FLAGS.boundary_loss in ["trades", "madry"], "Unknown boundary loss"
-        print("Loading pre-trained model...")
-        model = GestureClassifierSmall("BPTT_small_trained_200ms_2ms.pth").to(device)
-    else:
-        # - Create model
-        model = GestureClassifierSmall(file=None).to(device)
+    # - Generate transform for injecting random events
+    add_noise_transform = tonic.transforms.UniformNoise(
+        sensor_size=tonic.datasets.DVSGesture.sensor_size,
+        n_noise_events = FLAGS.noise_n_samples
+    )
+
+    # - Generate the model
+    model = IBMGesturesBPTT().to(device)
 
     # - Define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     print("Current test acc. is %.4f" % get_test_acc(data_loader_test, model=model))
-
-    # TODO Evaluate with parameters from paper and check for same success rate
-    # TODO Repeated logging of robustness during training
-    # TODO Full robustness at end of training
-    # TODO Experiment for sweep of beta_robustness
 
     def get_sparsefool_robustness(model, N_samples, data_loader):
         model.eval()
@@ -82,6 +78,7 @@ if __name__ == "__main__":
             if batch_idx == N_samples:
                 break
             X, y = X.to(device).float(), y.to(device).float()
+            X = torch.clamp(X, min=0.0, max=1.0)
             pred_label = torch.argmax(model.forward(X).data).item()
             if pred_label != y:
                 continue
@@ -90,12 +87,12 @@ if __name__ == "__main__":
                 net=model,
                 max_hamming_distance=int(1e6),
                 lb=0.0,
-                ub=X.max(),
+                ub=1.0,
                 lambda_=3.,
                 max_iter=15,
                 epsilon=0.02,
                 overshoot=0.02,
-                step_size=0.3,
+                step_size=0.5,
                 max_iter_deep_fool=50,
                 device=device,
                 verbose=True
@@ -118,10 +115,11 @@ if __name__ == "__main__":
         for batch_idx, (sample, target) in enumerate(data_loader_train):
             model.reset_states()
             sample = sample.float().to(device)
+            noisy_sample = add_noise_transform(sample)
             target = target.long().to(device)
             loss = robust_loss(
                 model=model,
-                x_natural=sample,
+                x_natural=noisy_sample,
                 y=target,
                 optimizer=optimizer,
                 FLAGS=FLAGS,

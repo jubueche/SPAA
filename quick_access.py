@@ -20,8 +20,8 @@ from Experiments import (
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
-nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
-# ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
+# nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
+ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
 # sparse_fool_lambda_experiment.sparse_fool_lambda_experiment.visualize() # C
 # visual_ibm_experiment.visual_ibm_experiment.visualize() # C
 # visual_nmnist_experiment.visual_nmnist_experiment.visualize() #  C
