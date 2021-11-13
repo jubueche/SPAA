@@ -17,7 +17,7 @@ def help():
 
 launch_settings = {
     "direct":"mkdir -p Resources/Logs; python {code_file} {args} 2>&1 | tee Resources/Logs/{session_id}.log",
-    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -R "rusage[ngpus_excl_p=1]" -q prod.med "python3 {code_file} {args}"',
+    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -R "rusage[ngpus_excl_p=1]" -Is -q prod.short "python3 {code_file} {args}"',
 }
 
 
@@ -140,7 +140,13 @@ class IBMGestures:
 
     @staticmethod
     def checker(sid, table, cache_dir):
-        return True
+        data = IBMGestures.loader(sid, table, cache_dir)
+        sid = data["IBMGestures_session_id"]
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        training_results_path = os.path.join(base_path, f"Resources/TrainingResults/{sid}.json")
+        with open(training_results_path, "rb") as f:
+            d = json.load(f)
+        return "complete" in d.keys()
 
     @staticmethod
     def get_flags():

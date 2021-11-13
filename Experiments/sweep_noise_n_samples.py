@@ -4,7 +4,7 @@ from datajuicer.utils import split
 from experiment_utils import *
 from datajuicer.visualizers import *
 
-noise_n_samples = [0, 100, 1000, 10000]
+noise_n_samples = [0]
 
 class sweep_noise_n_samples:
     @staticmethod
