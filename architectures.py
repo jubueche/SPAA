@@ -141,6 +141,8 @@ class IBMGestures:
     @staticmethod
     def checker(sid, table, cache_dir):
         data = IBMGestures.loader(sid, table, cache_dir)
+        if data is None:
+            return False
         sid = data["IBMGestures_session_id"]
         base_path = os.path.dirname(os.path.abspath(__file__))
         training_results_path = os.path.join(base_path, f"Resources/TrainingResults/{sid}.json")
@@ -161,12 +163,15 @@ class IBMGestures:
         data = {}
         base_path = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
-        snn = load_gestures_snn(model_path)
-        data["ann"] = None
-        data["snn"] = snn
-        data["prob_net"] = get_prob_net(None,snn,input_shape=(2,128,128))
-        data["IBMGestures_session_id"] = sid
-        return data
+        if os.path.exists(model_path):
+            snn = load_gestures_snn(model_path)
+            data["ann"] = None
+            data["snn"] = snn
+            data["prob_net"] = get_prob_net(None,snn,input_shape=(2,128,128))
+            data["IBMGestures_session_id"] = sid
+            return data
+        else:
+            return None
 
 class NMNIST:
     @staticmethod
