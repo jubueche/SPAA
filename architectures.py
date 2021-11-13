@@ -17,7 +17,7 @@ def help():
 
 launch_settings = {
     "direct":"mkdir -p Resources/Logs; python {code_file} {args} 2>&1 | tee Resources/Logs/{session_id}.log",
-    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -W 1:00 -n 8 -R "rusage[mem=1024]" "python3 {code_file} {args}"',
+    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -R "rusage[ngpus_excl_p=1]" -q prod.med "python3 {code_file} {args}"',
 }
 
 
@@ -112,7 +112,7 @@ class IBMGestures:
             if mode == "direct":
                 return "data/Gestures/"
             elif mode == "bsub":
-                return "$SCRATCH/data/Gestures/"
+                return "data/Gestures/"
             raise Exception("Invalid Mode")
 
         d["mk_data_dir"] = mk_data_dir
