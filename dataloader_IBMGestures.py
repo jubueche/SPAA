@@ -55,19 +55,19 @@ class IBMGesturesDataLoader:
         assert dset in ["train", "test"]
         train_flag = True if dset=='train' else False
         dataset = tonic.datasets.DVSGesture(save_to=self.save_to, train=train_flag)
-        metadata_path = f'{self.slice_metadata_path}/dvs_gesture/frames/{self.slicing_time_window//1000}ms/{dset}'
+        # metadata_path = f'{self.slice_metadata_path}/dvs_gesture/frames/{self.slicing_time_window//1000}ms/{dset}'
         cache_path = f'{self.caching_path}/frames/{batch_size}batch_{dt}dt/{dset}'
 
         # trainset slices with overlap if enabled and applies frame transform (before caching) and augmentations (post caching)
         if train_flag:
             slicer = SliceByTime(time_window=self.slicing_time_window, overlap=self.slicing_overlap)
-            sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform, metadata_path=metadata_path)
-            cached_dataset = CachedDataset(sliced_dataset, transform=augmentation, cache_path=cache_path)
+            sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform)#, metadata_path=metadata_path)
+            cached_dataset = CachedDataset(sliced_dataset, transform=augmentation, cache_path=cache_path, reset_cache=True)
         # testset slices without overlap and only applies frame transform
         else:
             slicer = SliceByTime(time_window=self.slicing_time_window, overlap=0)
-            sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform, metadata_path=metadata_path)
-            cached_dataset = CachedDataset(sliced_dataset, cache_path=cache_path)
+            sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform)#, metadata_path=metadata_path)
+            cached_dataset = CachedDataset(sliced_dataset, cache_path=cache_path, reset_cache=True)
         return DataLoader(cached_dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
 
     def get_spiketrain_dataset(self, dset, shuffle=True, num_workers=4):
