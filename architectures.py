@@ -136,6 +136,8 @@ class IBMGestures:
         d["lambda_"] = 2.0
         d["max_iter_sparse_fool"] = 10
         d["warmup"] = 0
+        d["aug_deg"] = 0
+        d["aug_shift"] = 0.
         return d
 
     @staticmethod
