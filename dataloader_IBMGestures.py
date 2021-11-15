@@ -68,7 +68,7 @@ class IBMGesturesDataLoader:
             slicer = SliceByTime(time_window=self.slicing_time_window, overlap=0)
             sliced_dataset = SlicedDataset(dataset, slicer=slicer, transform=frame_transform)#, metadata_path=metadata_path)
             cached_dataset = CachedDataset(sliced_dataset, cache_path=cache_path, reset_cache=False)
-        return DataLoader(cached_dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+        return DataLoader(cached_dataset, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size, collate_fn=tonic.collation.PadTensors(batch_first=True))
 
     def get_spiketrain_dataset(self, dset, shuffle=True, num_workers=4):
         """
