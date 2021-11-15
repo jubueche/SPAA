@@ -17,7 +17,7 @@ def help():
 
 launch_settings = {
     "direct":"mkdir -p Resources/Logs; python {code_file} {args} 2>&1 | tee Resources/Logs/{session_id}.log",
-    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -R "rusage[ngpus_excl_p=1]" -Is -q prod.short "python3 {code_file} {args}"',
+    "bsub": 'mkdir -p Resources/Logs; bsub -o Resources/Logs/{session_id}.log -R "rusage[ngpus_excl_p=1]" -q prod.med "python3 {code_file} {args}"',
 }
 
 

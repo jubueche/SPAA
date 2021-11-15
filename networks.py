@@ -10,8 +10,10 @@ from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
 from experiment_utils import device
-from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
-
+try:
+    from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
+except:
+    print("Failed to import sinabs")
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -121,24 +123,14 @@ class AbstractGestureClassifier(nn.Module):
         return out
 
     def set_batch_size(self, batch_size):
-        if isinstance(self.model, DynapcnnCompatibleNetwork):
-            for lyr in self.model.children():
-                if isinstance(lyr, SpikingLayer):
-                    lyr.batch_size = batch_size
-        else:
-            for lyr in self.model:
-                if isinstance(lyr, SpikingLayer):
-                    lyr.batch_size = batch_size
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.batch_size = batch_size
 
     def reset_states(self):
-        if isinstance(self.model, DynapcnnCompatibleNetwork):
-            for lyr in self.model.children():
-                if isinstance(lyr, SpikingLayer):
-                    lyr.reset_states(randomize=False)
-        else:
-            for lyr in self.model:
-                if isinstance(lyr, SpikingLayer):
-                    lyr.reset_states(randomize=False)
+        for lyr in self.model:
+            if isinstance(lyr, SpikingLayer):
+                lyr.reset_states(randomize=False)
             
 
 
