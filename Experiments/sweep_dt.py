@@ -4,13 +4,13 @@ from datajuicer.utils import split
 from experiment_utils import *
 from datajuicer.visualizers import *
 
-dts = [1000,2000,5000,10000]
+dts = [1000]
 
 class sweep_dt:
     @staticmethod
     def train_grid():
         grid = [IBMGestures.make()]
-        grid = configure(grid, {"batch_size": 256})
+        grid = configure(grid, {"batch_size": 16})
         grid = split(grid, "dt", dts)
         return grid
 
