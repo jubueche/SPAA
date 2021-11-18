@@ -126,8 +126,8 @@ class IBMGestures:
     def default_hyperparameters():
         d = standard_defaults()
         d["epochs"] = 15
-        d["batch_size"] = 64
-        d["dt"] = 10000
+        d["batch_size"] = 32
+        d["dt"] = 2000
         d["noise_n_samples"] = 0
         d["seed"] = 0
         d["boundary_loss"] = "None"
