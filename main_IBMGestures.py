@@ -46,7 +46,7 @@ if __name__ == "__main__":
     torch.manual_seed(FLAGS.seed)
     epochs = FLAGS.epochs
 
-    ibm_gesture_dataloader = IBMGesturesDataLoader(slicing_overlap=40000)
+    ibm_gesture_dataloader = IBMGesturesDataLoader(slicing_overlap=40000, caching_path='/dataP/jbu/cache/'+str(FLAGS.session_id))
 
     data_loader_train = ibm_gesture_dataloader.get_data_loader(
         "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt, aug_deg=FLAGS.aug_deg, aug_shift=FLAGS.aug_shift)
