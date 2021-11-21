@@ -46,14 +46,12 @@ if __name__ == "__main__":
     torch.manual_seed(FLAGS.seed)
     epochs = FLAGS.epochs
 
-    ibm_gesture_dataloader = IBMGesturesDataLoader()
+    ibm_gesture_dataloader = IBMGesturesDataLoader(slicing_overlap=40000, caching_path='/dataP/jbu/cache/'+str(FLAGS.session_id))
 
     data_loader_train = ibm_gesture_dataloader.get_data_loader(
-        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt, n_noise_events=FLAGS.noise_n_samples)
+        "train", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt, aug_deg=FLAGS.aug_deg, aug_shift=FLAGS.aug_shift)
     data_loader_test = ibm_gesture_dataloader.get_data_loader(
-        "test", shuffle=True, num_workers=4, batch_size=32, dt=dt)
-    data_loader_test_robustness_test = ibm_gesture_dataloader.get_data_loader(
-        "test", shuffle=True, num_workers=4, batch_size=1, dt=dt)
+        "test", shuffle=True, num_workers=4, batch_size=batch_size, dt=dt)
 
     # - Generate the model
     model = IBMGesturesBPTT().to(device)
@@ -63,50 +61,16 @@ if __name__ == "__main__":
 
     print("Current test acc. is %.4f" % get_test_acc(data_loader_test, model=model))
 
-    def get_sparsefool_robustness(model, N_samples, data_loader):
-        model.eval()
-        success = []; L0s = []
-        for batch_idx, (X, y) in enumerate(data_loader):
-            if batch_idx == N_samples:
-                break
-            X, y = X.to(device).float(), y.to(device).float()
-            X = torch.clamp(X, min=0.0, max=1.0)
-            pred_label = torch.argmax(model.forward(X).data).item()
-            if pred_label != y:
-                continue
-            attack_dict = sparsefool(
-                x_0=X,
-                net=model,
-                max_hamming_distance=int(1e6),
-                lb=0.0,
-                ub=1.0,
-                lambda_=3.,
-                max_iter=15,
-                epsilon=0.02,
-                overshoot=0.02,
-                step_size=0.5,
-                max_iter_deep_fool=50,
-                device=device,
-                verbose=True
-            )
-            success.append(attack_dict["success"])
-            if not attack_dict["success"]:
-                L0s.append(int(1e6))
-            else:
-                L0s.append(attack_dict["L0"])
-        
-        model.train()
-        if success == []:
-            return 0.0,0.0
-        else:
-            return np.mean(success), np.median(L0s)
-
     # - Begin the training
     for epoch in range(epochs):
         model.train()
         for batch_idx, (sample, target) in enumerate(data_loader_train):
             t0 = time.time()
             model.reset_states()
+            # generate random noise coordinates
+            noise_coordinates = np.array([np.random.randint(size, size=FLAGS.noise_n_samples) for size in sample.shape])
+            # add 1 for each noise spike
+            sample[noise_coordinates] += 1
             sample = sample.float().to(device)
             target = target.long().to(device)
             loss = robust_loss(
@@ -134,17 +98,7 @@ if __name__ == "__main__":
                 log(FLAGS.session_id, "loss", float(loss))
 
         # - End epoch
-        # - Evaluate robustness
-        mean_success_rate, median_L0 = get_sparsefool_robustness(
-            model=model,
-            N_samples=10,
-            data_loader=data_loader_test_robustness_test
-        )
-        log(FLAGS.session_id, "mean_success_rate", mean_success_rate)
-        log(FLAGS.session_id, "median_L0", median_L0)
         test_acc = get_test_acc(data_loader_test, model)
-        print("Test acc. %.4f Robustness: Mean success rate: %.4f Median L0: %.4f" %\
-            (test_acc,mean_success_rate,median_L0))
 
     # - End training
     # - Evaluate on test set and print accuracy

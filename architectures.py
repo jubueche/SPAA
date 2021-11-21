@@ -126,8 +126,8 @@ class IBMGestures:
     def default_hyperparameters():
         d = standard_defaults()
         d["epochs"] = 15
-        d["batch_size"] = 64
-        d["dt"] = 10000
+        d["batch_size"] = 32
+        d["dt"] = 2000
         d["noise_n_samples"] = 0
         d["seed"] = 0
         d["boundary_loss"] = "None"
@@ -136,11 +136,21 @@ class IBMGestures:
         d["lambda_"] = 2.0
         d["max_iter_sparse_fool"] = 10
         d["warmup"] = 0
+        d["aug_deg"] = 0
+        d["aug_shift"] = 0.
         return d
 
     @staticmethod
     def checker(sid, table, cache_dir):
-        return True
+        data = IBMGestures.loader(sid, table, cache_dir)
+        if data is None:
+            return False
+        sid = data["IBMGestures_session_id"]
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        training_results_path = os.path.join(base_path, f"Resources/TrainingResults/{sid}.json")
+        with open(training_results_path, "rb") as f:
+            d = json.load(f)
+        return "complete" in d.keys()
 
     @staticmethod
     def get_flags():
@@ -155,12 +165,15 @@ class IBMGestures:
         data = {}
         base_path = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
-        snn = load_gestures_snn(model_path)
-        data["ann"] = None
-        data["snn"] = snn
-        data["prob_net"] = get_prob_net(None,snn,input_shape=(2,128,128))
-        data["IBMGestures_session_id"] = sid
-        return data
+        if os.path.exists(model_path):
+            snn = load_gestures_snn(model_path)
+            data["ann"] = None
+            data["snn"] = snn
+            data["prob_net"] = get_prob_net(None,snn,input_shape=(2,128,128))
+            data["IBMGestures_session_id"] = sid
+            return data
+        else:
+            return None
 
 class NMNIST:
     @staticmethod
