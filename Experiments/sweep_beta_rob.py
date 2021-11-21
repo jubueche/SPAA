@@ -10,7 +10,7 @@ class sweep_beta_rob:
     @staticmethod
     def train_grid():
         grid = [IBMGestures.make()]
-        grid = configure(grid, {"batch_size": 16, "boundary_loss": "trades"})
+        grid = configure(grid, {"batch_size": 16, "boundary_loss": "trades", "epochs":2})
         grid = split(grid, "beta_robustness", beta_robustness)
         return grid
 
