@@ -17,7 +17,8 @@ from Experiments import (
     visual_universal,
     patches_vary_target_label,
     visual_patches,
-    sweep_noise_n_samples
+    sweep_noise_n_samples,
+    sweep_beta_rob
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
@@ -38,4 +39,5 @@ from Experiments import (
 # universal_vs_random_experiment.universal_vs_random_experiment.visualize() # - Calibrate max_hamming_distance
 # patches_vary_target_label.patches_vary_target_label.visualize() # C
 # visual_patches.visual_patches.visualize() # C
-sweep_noise_n_samples.sweep_noise_n_samples.visualize()
+# sweep_noise_n_samples.sweep_noise_n_samples.visualize()
+sweep_beta_rob.sweep_beta_rob.visualize()

@@ -150,7 +150,7 @@ class IBMGestures:
         training_results_path = os.path.join(base_path, f"Resources/TrainingResults/{sid}.json")
         with open(training_results_path, "rb") as f:
             d = json.load(f)
-        return "complete" in d.keys()
+        return "done" in d.keys()
 
     @staticmethod
     def get_flags():
@@ -164,7 +164,7 @@ class IBMGestures:
     def loader(sid, table, cache_dir):
         data = {}
         base_path = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pt")
+        model_path = os.path.join(base_path, f"Resources/Models/{sid}_model.pth")
         if os.path.exists(model_path):
             snn = load_gestures_snn(model_path)
             data["ann"] = None
