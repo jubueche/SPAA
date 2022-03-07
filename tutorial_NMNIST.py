@@ -6,7 +6,7 @@ from utils import get_prediction, plot_attacked_prob
 import numpy as np
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # - Create data loader
 nmnist_dataloader = NMNISTDataLoader()

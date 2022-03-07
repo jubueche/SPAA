@@ -23,7 +23,7 @@ import numpy as np
 # ]
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 torch.manual_seed(0)
 np.random.seed(0)

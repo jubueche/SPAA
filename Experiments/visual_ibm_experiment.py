@@ -45,8 +45,15 @@ def generate_sample(attack_fn, data_loader, source_label, target_label, num, cla
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
         target = target.long().to(device)
+
         return_dict = attack_fn(X0)
+        # return_dict = {}
+        # return_dict["X_adv"] = X0
+        # return_dict["predicted"] = target
+        # return_dict["predicted_attacked"] = target
+
         return_dict["X0"] = X0
+        # if class_labels[return_dict["predicted_attacked"]] in target_label: # del
         if (class_labels[return_dict["predicted_attacked"]] in target_label
                 and return_dict["predicted"] == target
                 and return_dict["predicted"] != return_dict["predicted_attacked"]):
@@ -140,7 +147,8 @@ class visual_ibm_experiment:
             source_label=source_labels,
             target_label=target_labels,
             num=len(source_labels),
-            class_labels=class_labels)
+            class_labels=class_labels
+        )
 
         # - Create gridspec
         N_rows = 2

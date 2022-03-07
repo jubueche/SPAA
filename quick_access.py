@@ -18,12 +18,14 @@ from Experiments import (
     patches_vary_target_label,
     visual_patches,
     sweep_noise_n_samples,
-    sweep_beta_rob
+    sweep_beta_rob,
+    sweep_pga_bmnist,
+    sweep_pga_nmnist
 )
 
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
 # nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
-# ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
+ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
 # sparse_fool_lambda_experiment.sparse_fool_lambda_experiment.visualize() # C
 # visual_ibm_experiment.visual_ibm_experiment.visualize() # C
 # visual_nmnist_experiment.visual_nmnist_experiment.visualize() #  C
@@ -40,4 +42,6 @@ from Experiments import (
 # patches_vary_target_label.patches_vary_target_label.visualize() # C
 # visual_patches.visual_patches.visualize() # C
 # sweep_noise_n_samples.sweep_noise_n_samples.visualize()
-sweep_beta_rob.sweep_beta_rob.visualize()
+# sweep_beta_rob.sweep_beta_rob.visualize()
+# sweep_pga_nmnist.sweep_pga_nmnist.visualize()
+# sweep_pga_bmnist.sweep_pga_bmnist.visualize()

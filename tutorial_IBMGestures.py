@@ -7,7 +7,7 @@ from datajuicer import run
 import numpy as np
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 if __name__ == "__main__":
 
