@@ -12,9 +12,10 @@ from aermanager.preprocess import create_raster_from_xytp
 # data and networks from this library
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from adversarial_patch import adversarial_patch, transform_circle
-from networks import GestureClassifierSmall
+from networks import AbstractGestureClassifier, GestureClassifierSmall
+from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
 
-DEVICE = torch.device("cuda:0")
+DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]
@@ -129,6 +130,45 @@ if __name__ == "__main__":
     label_conf = 0.75
     max_count = 100
 
+    # - Generate quantized model
+    snn = snn.to("cpu")
+    q_model = DynapcnnCompatibleNetwork(
+        snn,
+        discretize=True,
+        input_shape=input_shape[1:]
+    )
+    q_model = q_model.to(DEVICE)
+    snn = snn.to(DEVICE)
+    
+    weights_orig = [v.data for n,v in gesture_classifier.model.named_parameters()]
+    scales = []
+    for w_o in weights_orig:
+        bit_precision = 8
+        min_val_disc = -(2 ** (bit_precision - 1))
+        max_val_disc = 2 ** (bit_precision - 1) - 1
+
+        # Range in which values lie
+        min_val_obj = torch.min(w_o)
+        max_val_obj = torch.max(w_o)
+
+        # Determine if negative or positive values are to be considered for scaling
+        # Take into account that range for diescrete negative values is slightly larger than for positive
+        min_max_ratio_disc = abs(min_val_disc / max_val_disc)
+        if abs(min_val_obj) <= abs(max_val_obj) * min_max_ratio_disc:
+            scaling = abs(max_val_disc / max_val_obj)
+        else:
+            scaling = abs(min_val_disc / min_val_obj)
+        scales.append(scaling)
+    
+    # import matplotlib.pyplot as plt
+    for i,(v_snn,v_q) in enumerate(zip(gesture_classifier.model.parameters(),q_model.parameters())):
+        new_w = torch.reshape(v_q / scales[i], v_snn.shape)
+        # plt.clf()
+        # plt.plot(v_snn.detach().reshape(-1).numpy())
+        # plt.plot(new_w.detach().reshape(-1).numpy())
+        # plt.show()
+        v_snn.data = new_w
+
     # - Get the adversarial patches
     return_dict_patches = adversarial_patch(
         net=gesture_classifier,
@@ -144,12 +184,15 @@ if __name__ == "__main__":
         label_conf=label_conf,
         max_count=max_count,
         eval_after=eval_after,
-        device=DEVICE
+        device=DEVICE,
+        lambda_=0.0005,
+        eta=1.0
     )
 
     # Prepare file for saving
-    if not os.path.exists("./attack_patches"): os.makedirs("./attack_patches")
-    savef = h5py.File(f"./attack_patches/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
+    save_dir = "./attack_patches"
+    if not os.path.exists(save_dir): os.makedirs(save_dir)
+    savef = h5py.File(f"{save_dir}/attacks_patches_ep{n_epochs}_lb{target_label}_num{MAX}_patchsize{str(patch_size).split('.')[1]}.h5", "w")
     saved_orig = savef.create_group("original_spiketrains")
     saved_attk = savef.create_group("attacked_spiketrains")
     saved_attk_random = savef.create_group("attacked_spiketrains_random")
