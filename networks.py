@@ -10,7 +10,10 @@ from dataloader_BMNIST import BMNISTDataLoader
 from utils import reparameterization_bernoulli
 import torch.nn.functional as F
 from experiment_utils import device
-
+try:
+    from sinabs.backend.dynapcnn import DynapcnnCompatibleNetwork
+except:
+    print("Failed to import sinabs")
 
 class ProbNetwork(SinabsNetwork):
     """
@@ -128,6 +131,7 @@ class AbstractGestureClassifier(nn.Module):
         for lyr in self.model:
             if isinstance(lyr, SpikingLayer):
                 lyr.reset_states(randomize=False)
+            
 
 
 class IBMGesturesBPTT(AbstractGestureClassifier):

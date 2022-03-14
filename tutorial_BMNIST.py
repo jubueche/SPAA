@@ -12,7 +12,7 @@ from utils import get_prediction
 random.seed(42)
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # - CNN for Binary MNIST
 bmnist_dataloader = BMNISTDataLoader()

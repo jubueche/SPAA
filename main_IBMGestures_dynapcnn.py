@@ -14,7 +14,7 @@ from networks import load_gestures_snn
 from tqdm import tqdm
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def get_test_acc(data_loader, model):

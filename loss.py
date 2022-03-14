@@ -6,11 +6,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from copy import deepcopy
-from functools import partial
+from attacks import non_prob_fool
 import numpy as np
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 def robust_loss(model,
                 x_natural,
@@ -26,14 +26,29 @@ def robust_loss(model,
     if FLAGS.beta_robustness != 0.0 and not is_warmup and not FLAGS.boundary_loss == "None":
         model_copy = deepcopy(model)
         model_copy.eval()
+        x_0 = x_natural.clone().float()
+        # x_0 = torch.clamp(torch.round(x_0), 0.0, 1.0)
 
+        # with torch.no_grad():
+        x_adv_dict = non_prob_fool(
+            max_hamming_distance=1000,
+            net=model_copy,
+            X0=x_0,
+            round_fn=torch.round,
+            eps=0.5,
+            eps_iter=0.1,
+            N_pgd=5,
+            norm=np.inf,
+            rand_minmax=0.01,
+            boost=False,
+            early_stopping=False,
+            verbose=False,
+            batch=True,
+            clamp=False
+        )
 
-        raise NotImplementedError
-
-        x_adv = return_dict_sparse_fool["X_adv"]
-        x_adv = Variable(torch.clamp(x_adv, 0.0, 1.0), requires_grad=False)
-        y_adv = y[return_dict_sparse_fool["success"].bool()]
-        x_adv = x_adv[return_dict_sparse_fool["success"].bool()]
+        x_adv = x_adv_dict["X_adv"]
+        x_adv = Variable(x_adv, requires_grad=False)
         model_copy.train()
 
     optimizer.zero_grad()
@@ -43,10 +58,7 @@ def robust_loss(model,
     if x_adv == [] or FLAGS.beta_robustness == 0.0:
         loss = loss_natural
     elif FLAGS.boundary_loss == "madry":
-        model.reset_states()
-        logits_model_x_adv = model(x_adv)
-        loss_robust = F.cross_entropy(logits_model_x_adv, y_adv)
-        loss = loss_natural + FLAGS.beta_robustness * loss_robust
+        raise NotImplementedError
     elif FLAGS.boundary_loss == "trades":
         model.reset_states()
         logits_model_x_adv = model(x_adv)

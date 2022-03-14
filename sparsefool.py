@@ -20,7 +20,7 @@ def deepfool(
     overshoot=0.02,
     step_size=0.01,
     max_iter=50,
-    device="cuda",
+    device="cuda:0",
 ):
     n_queries = 0
     X0 = deepcopy(im) # - Keep continuous version
@@ -296,7 +296,7 @@ def frame_based_sparsefool(
     n_attack_frames=1,
     step_size=1.0,
     max_iter_deep_fool=50,
-    device="cuda",
+    device="cuda:0",
     verbose=False,
 ):
     """
@@ -401,7 +401,7 @@ def sparsefool(
     overshoot=0.02,
     step_size=0.01,
     max_iter_deep_fool=50,
-    device="cuda",
+    device="cuda:0",
     verbose=False,
 ):
     t0 = time.time()

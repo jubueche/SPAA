@@ -10,7 +10,7 @@ from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import sparsefool
 from networks import GestureClassifierSmall
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 torch.random.manual_seed(1)
 
 events_struct = [("x", np.uint16), ("y", np.uint16), ("t", np.uint64), ("p", bool)]

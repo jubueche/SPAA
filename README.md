@@ -4,7 +4,7 @@ Repository containing the code for Spiking Probabilistic Adversarial Attacks.
 ## Setup
 - Install cleverhans using ```pip install git+https://github.com/cleverhans-lab/cleverhans.git#egg=cleverhans```
 - Install Sinabs ```pip install sinabs```
-- Install pytorch ```pip install torch ujson gdown```
+- Install pytorch ```pip install torch ujson gdown matplotlib tonic```
 - Install aermanager ```pip install aermanager```
 - Install sinabs-dynapcnn ```pip install sinabs-dynapcnn==0.2.1.dev53```
 
