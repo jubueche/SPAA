@@ -44,7 +44,6 @@ def spiketrain_forward(spiketrain, factory):
     output_neuron_index = [ev.feature for ev in evs_out]
     times = [ev.timestamp for ev in evs_out]
     activations = np.bincount(output_neuron_index)
-#     import ipdb; ipdb.set_trace()
     print(f"N. spikes from chip: {len(output_neuron_index)}, activations: {activations}")
     if len(output_neuron_index) == 0:
         # wrong prediction if there is no spike
@@ -75,40 +74,21 @@ if __name__ == "__main__":
     data = h5py.File(attack_file, "r")
     successful_attacks = np.where(data["attack_successful"])[0]
 
-    # normalise weights
-#     spike_layers = [name for name, child in ann.cpu().named_children() if isinstance(child, (nn.ReLU))]
-#     param_layers = [name for name, child in ann.cpu().named_children() if isinstance(child, (nn.Conv2d, nn.Linear))]
-#     input_shape=(2, 128, 128)
-#     batch_size = 10
-#     frames = np.zeros((batch_size, *input_shape))
-#     for i in range(batch_size):
-#         spikes = data["original_spiketrains"][str(i)]
-#         raster = create_raster_from_xytp(spikes, dt=500, bins_x=np.arange(129), bins_y=np.arange(129))
-#         frames[i] = raster.sum(0)
-#     normalize_weights(ann, torch.FloatTensor(frames), output_layers=spike_layers, param_layers=param_layers)
-#     normalised_model = from_model(ann, input_shape=input_shape, add_spiking_output=False, synops=False)
-#     snn = normalised_model.spiking_model
-#     snn.eval()
-
-#     scale_factor = 0.4
-#     with torch.no_grad():
-#         snn[0].weight *= scale_factor
-#         snn[3].weight *= scale_factor
-#         snn[7].weight *= scale_factor
-
+    # Will be transferred to the hardware
     hardware_compatible_model = DynapcnnCompatibleNetwork(
         snn,
         discretize=True,
         input_shape=input_shape,
     )
 
+    # We use a quantized model for simulation
     quantized_model = DynapcnnCompatibleNetwork(
         snn,
         discretize=True,
         input_shape=input_shape,
     )
 
-    # Apply model to device
+    # Move model to device
     layers_ordering = [0, 1, 2, 3]  # [0, 1, 2, 7, 4, 5, 6, 3, 8]
 
     hardware_compatible_model.to(
@@ -133,9 +113,9 @@ if __name__ == "__main__":
     counter = SNNSynOpCounter(snn)
     for i in tqdm(successful_attacks):
         print("=" * 50)
-        spiketrain = data["original_spiketrains"][str(i)]
-        attacked_spk = data["attacked_spiketrains"][str(i)]
-        attacked_spk_random = data["attacked_spiketrains_random"][str(i)]
+        spiketrain = data["original_spiketrains"][str(i)][()]
+        attacked_spk = data["attacked_spiketrains"][str(i)][()]
+        attacked_spk_random = data["attacked_spiketrains_random"][str(i)][()]
         ground_truth = data["ground_truth"][i]
         assert ground_truth == data["sinabs_label"][i]
         print(f"Target: {TARGET_LABEL}, ground truth: {ground_truth}")
