@@ -172,31 +172,49 @@ def non_prob_fool(
     
     n_queries = 2 + N_pgd
     if boost or early_stopping:
-        deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
-        tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
-        tupled.sort(key=lambda a : a[0], reverse=True)
-        flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
-        
-        X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping)
-        n_queries += n_queries_extra
+        if batch:
+            X_adv = torch.zeros_like(X0)
+            L0 = torch.zeros(X0.shape[0])
+            for b in range(X0.shape[0]):
+                print("B %d / %d" % (b,X0.shape[0]))
+                deviations = torch.abs(X_adv_cont[b] - X0[b]).cpu().numpy()
+                tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+                tupled.sort(key=lambda a : a[0], reverse=True)
+                flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+                
+                X_adv_b, n_queries_extra_b, L0_b = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X0[b], y[b], net, early_stopping)
+                X_adv[b] = X_adv_b
+                L0[b] = L0_b
+                n_queries += n_queries_extra_b
+            n_queries /= X0.shape[0] # per element in batch
+        else:        
+            deviations = torch.abs(X_adv_cont - X0).cpu().numpy()
+            tupled = [(aa,) + el for (aa, el) in zip(deviations.flatten(), get_index_list(list(deviations.shape)))]
+            tupled.sort(key=lambda a : a[0], reverse=True)
+            flip_indices = list(map(lambda a : a[1:], tupled))[:max_hamming_distance]
+            
+            X_adv, n_queries_extra, L0 = get_X_adv_post_attack(flip_indices, max_hamming_distance, boost, verbose, X_adv, y, net, early_stopping)
+            n_queries += n_queries_extra
     else:
         X_adv = round_fn(X_adv_cont)
         if clamp:
             X_adv = torch.clamp(X_adv, 0.0, 1.0)
         L0 = (X_adv - X0).abs().sum()
          
-    success_rate = 1. - (y == get_prediction(net, X_adv, mode="non_prob", batch=batch)).int().sum() / len(y)
+    len_y = 1 if y.shape == torch.Size([]) else len(y)
+    success_rate = 1. - (y == get_prediction(net, X_adv, mode="non_prob", batch=batch)).int().sum() / len_y
     if verbose:
-       print("Success rate %.3f L0 is %.3f" % (success_rate,L0))
+       print("Success rate %.3f L0 is %.3f" % (success_rate, L0 if isinstance(L0, int) else L0.median()))
     t1 = time.time()
     return_dict = {}
-    return_dict["success"] = success_rate
+    return_dict["success"] = float(success_rate)
     return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
-    return_dict["L0"] = L0
+    return_dict["L0"] = L0 if y.shape == torch.Size([]) else [float(l) for l in L0]
     return_dict["n_queries"] = n_queries
-    return_dict["predicted"] = y
-    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob", batch=batch)
+    return_dict["predicted"] = int(y) if y.shape == torch.Size([]) else [int(yy) for yy in y]
+    pred = get_prediction(net, X_adv, mode="non_prob", batch=batch)
+    return_dict["predicted_attacked"] = int(pred) if y.shape == torch.Size([]) else [int(yy) for yy in pred]
     return return_dict
 
 def prob_fool(
@@ -240,12 +258,63 @@ def prob_fool(
     t1 = time.time()
     return_dict = {}
     return_dict["success"] = 1 if not (y == get_prediction(prob_net, X_adv, mode="non_prob")) else 0
+    if return_dict["success"] == 1:
+        print("success")
+    else:
+        print("no success")
     return_dict["elapsed_time"] = t1 - t0
     return_dict["X_adv"] = X_adv
     return_dict["L0"] = L0
     return_dict["n_queries"] = n_queries
-    return_dict["predicted"] = y
-    return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob")
+    return_dict["predicted"] = y.cpu().numpy()
+    return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob").cpu().numpy()
+    return return_dict
+
+def marchisio(
+    net,
+    X0,
+    frame_sparsity, # 0.6 means 40% of the frames can be attacked
+    lr,
+    n_iter
+):
+    t0 = time.time()
+    y = get_prediction(net, X0, mode="non_prob")
+    # - Create a random sparsification mask according to sparse value
+    mask = torch.tensor(int(frame_sparsity*X0.size(0))*[0.0]+(X0.size(0)-int(frame_sparsity*X0.size(0)))*[1.0], device=X0.device)
+    mask = mask[torch.randperm(mask.size(0))][:,None,None,None]
+    pert = torch.nn.Parameter(torch.zeros_like(X0), requires_grad=True)
+    optimizer = torch.optim.Adam([pert], lr=lr)
+    n_queries = 0
+
+    for _ in range(n_iter):
+        X_adv = X0 + mask * pert
+        print("Pert min %.4f max %.4f\nX_adv min %.4f max %.4f" %\
+            (pert.min(),pert.max(),X_adv.min(),X_adv.max()))
+        probs = torch.nn.functional.softmax(get_prediction_raw(net, X_adv, mode="non_prob"))
+        true_label_prob = probs[y]
+        loss = -torch.log(1 - true_label_prob + 1e-6) # - weight_loss2 = 0.0 on github of Marchsion et al.
+        optimizer.zero_grad()
+        loss.backward() 
+        optimizer.step()
+        n_queries += 1
+        predicted_label_x_adv = get_prediction(net, X_adv.clamp(0.,1.).round(), mode="non_prob")
+        L0 = (X0-X_adv.clamp(0.,1.).round()).abs().sum()
+        print("L0 %d X_adv label %d true %d" % (L0,predicted_label_x_adv,y))
+        if predicted_label_x_adv != y: break
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(net, X_adv.clamp(0.,1.).round(), mode="non_prob")) else 0
+    if return_dict["success"] == 1:
+        print("success")
+    else:
+        print("no success")
+    return_dict["elapsed_time"] = t1 - t0
+    return_dict["X_adv"] = X_adv.clamp(0.,1.).round()
+    return_dict["L0"] = L0
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y.cpu().numpy()
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv.clamp(0.,1.).round(), mode="non_prob").cpu().numpy()
     return return_dict
 
 def SCAR(
