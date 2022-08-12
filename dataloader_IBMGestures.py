@@ -59,7 +59,7 @@ class IBMGesturesDataLoader:
 
         # - Download the data if not already exist
         if not (self.path / self.subfolder).exists():
-            os.system("gdown https://drive.google.com/uc?id=1BqBaqoPpr1YUx8s1boYtt46Tz4IOxpLy")
+            os.system("gdown https://drive.google.com/uc?id=11lm8irgIsRhMOFvjGX6oZ__GSwz7WFUu")
             os.system("mv gesture_dataset_200ms.zip data/Gestures/")
             os.system("unzip data/Gestures/gesture_dataset_200ms.zip -d data/Gestures/")
 

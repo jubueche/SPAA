@@ -61,22 +61,22 @@ class ibm_gestures_comparison_experiment:
             True,  # - Use SNN
         )
 
-        grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{lambda_}",
-            "{max_iter}",
-            "{epsilon}",
-            "{overshoot}",
-            "{n_attack_frames}",
-            "{step_size}",
-            "{max_iter_deep_fool}",
-            "{verbose}",
-            "{limit}",
-            True,  # - Use SNN
-        )
+        # grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{lambda_}",
+        #     "{max_iter}",
+        #     "{epsilon}",
+        #     "{overshoot}",
+        #     "{n_attack_frames}",
+        #     "{step_size}",
+        #     "{max_iter_deep_fool}",
+        #     "{verbose}",
+        #     "{limit}",
+        #     True,  # - Use SNN
+        # )
 
-        attacks = ["sparse_fool","frame_based_sparse_fool"]
+        attacks = ["sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")
