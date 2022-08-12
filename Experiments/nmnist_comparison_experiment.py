@@ -35,6 +35,12 @@ class nmnist_comparison_experiment:
         step_size = 0.2
         max_iter_deep_fool = 50
 
+        # - Marchisio
+        # - Hyperparams from https://github.com/albertomarchisio/DVS-Attacks/blob/main/NMNIST/NMNISTAttacks.ipynb
+        frame_sparsity = 85. / 350.
+        n_iter = 20
+        lr = 0.5
+
         grid = configure(
             grid,
             {
@@ -55,61 +61,78 @@ class nmnist_comparison_experiment:
                 "epsilon": epsilon,
                 "overshoot": overshoot,
                 "step_size": step_size,
-                "max_iter_deep_fool": max_iter_deep_fool
+                "max_iter_deep_fool": max_iter_deep_fool,
+                "frame_sparsity": frame_sparsity,
+                "lr": lr,
+                "n_iter": n_iter
             },
         )
 
         grid = run(
             grid,
-            prob_fool_on_test_set,
+            marchisio_on_test_set,
             n_threads=1,
-            store_key="prob_fool",
+            store_key="marchisio"
         )(
             "{*}",
-            "{N_pgd}",
-            "{N_MC}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
+            "{frame_sparsity}",
+            "{lr}",
+            "{n_iter}",
+            "{limit}"
         )
 
-        grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
-            "{*}",
-            "{N_pgd}",
-            "{round_fn}",
-            "{eps}",
-            "{eps_iter}",
-            "{rand_minmax}",
-            "{norm}",
-            "{max_hamming_distance}",
-            "{boost}",
-            "{early_stopping}",
-            "{verbose}",
-            "{limit}",
-            True,
-        )
+        # grid = run(
+        #     grid,
+        #     prob_fool_on_test_set,
+        #     n_threads=1,
+        #     store_key="prob_fool",
+        # )(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{N_MC}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        # )
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
-            "{*}",
-            "{max_hamming_distance}",
-            "{lambda_}",
-            "{max_iter}",
-            "{epsilon}",
-            "{overshoot}",
-            "{step_size}",
-            "{max_iter_deep_fool}",
-            "{verbose}",
-            "{limit}",
-            True, # - Use SNN
-        )
+        # grid = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+        #     "{*}",
+        #     "{N_pgd}",
+        #     "{round_fn}",
+        #     "{eps}",
+        #     "{eps_iter}",
+        #     "{rand_minmax}",
+        #     "{norm}",
+        #     "{max_hamming_distance}",
+        #     "{boost}",
+        #     "{early_stopping}",
+        #     "{verbose}",
+        #     "{limit}",
+        #     True,
+        # )
 
-        attacks = ["prob_fool","non_prob_fool","sparse_fool"]
+        # grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+        #     "{*}",
+        #     "{max_hamming_distance}",
+        #     "{lambda_}",
+        #     "{max_iter}",
+        #     "{epsilon}",
+        #     "{overshoot}",
+        #     "{step_size}",
+        #     "{max_iter_deep_fool}",
+        #     "{verbose}",
+        #     "{limit}",
+        #     True, # - Use SNN
+        # )
+
+        attacks = ["marchisio"]
+        # attacks = ["marchisio","prob_fool","non_prob_fool","sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")

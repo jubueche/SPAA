@@ -98,7 +98,7 @@ class ibm_gestures_comparison_experiment:
         #     True,  # - Use SNN
         # )
 
-        attacks = ["sparse_fool"]
+        attacks = ["marchisio","sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")

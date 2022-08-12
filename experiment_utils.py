@@ -490,9 +490,10 @@ def evaluate_on_test_set(model, limit, attack_fn):
             ret_f["targets"].append(target)
         return ret_f, idx
 
-    for batch, target in data_loader:
+    for idx, (batch, target) in enumerate(data_loader):
         if N_count >= limit and limit != -1:
             break
+        print("Batch %d" % idx)
         X = batch.to(device)
         X = X.float()
         X = torch.clamp(X, 0.0, 1.0)

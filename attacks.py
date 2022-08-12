@@ -310,8 +310,8 @@ def marchisio(
     else:
         print("no success")
     return_dict["elapsed_time"] = t1 - t0
-    return_dict["X_adv"] = X_adv.clamp(0.,1.).round()
-    return_dict["L0"] = L0
+    return_dict["X_adv"] = X_adv.clamp(0.,1.).round().detach().cpu().numpy()
+    return_dict["L0"] = int(L0)
     return_dict["n_queries"] = n_queries
     return_dict["predicted"] = y.cpu().numpy()
     return_dict["predicted_attacked"] = get_prediction(net, X_adv.clamp(0.,1.).round(), mode="non_prob").cpu().numpy()

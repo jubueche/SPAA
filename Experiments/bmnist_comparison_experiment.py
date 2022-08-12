@@ -20,12 +20,22 @@ def split_attack_grid(grid, attacks):
 
 
 def make_summary(d):
-    network_correct = d["attack_result"]["predicted"] == d["attack_result"]["targets"]
+    try:
+        l0 = [float(el[0].cpu().detach().float()) for el in d["attack_result"]["L0"]]
+        d["attack_result"]["L0"] = np.array(l0)
+        predicted = [int(el[0]) for el in d["attack_result"]["predicted"]]
+        targets = [int(el[0]) for el in d["attack_result"]["targets"]]
+        queries = np.array([el[0] for el in d["attack_result"]["n_queries"]])
+    except:
+        print("Failed")
+        predicted = d["attack_result"]["predicted"]
+        queries = d["attack_result"]["n_queries"]
+        targets = d["attack_result"]["targets"]
+    network_correct = np.array(predicted) == np.array(targets)
     d["success_rate"] = 100 * np.mean(d["attack_result"]["success"][network_correct])
     d["attack_result"]["L0"][~np.array(d["attack_result"]["success"]).astype(bool)] = np.iinfo(int).max  # max it could possibly be
-
     d["median_elapsed_time"] = np.median(d["attack_result"]["elapsed_time"][network_correct])
-    d["median_n_queries"] = np.median(d["attack_result"]["n_queries"][network_correct])
+    d["median_n_queries"] = np.median(queries[network_correct])
     d["mean_L0"] = np.nan
     d["median_L0"] = np.median(d["attack_result"]["L0"][network_correct])
     return d
