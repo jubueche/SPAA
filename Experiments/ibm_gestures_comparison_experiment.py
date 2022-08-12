@@ -29,6 +29,12 @@ class ibm_gestures_comparison_experiment:
         max_iter_deep_fool = 50
         n_attack_frames = 1
 
+        # - Marchisio
+        # - Hyperparams from https://github.com/albertomarchisio/DVS-Attacks/blob/main/DVS128Gesture/DVS128GestureAttacks.ipynb
+        frame_sparsity = 479. / 1450.
+        n_iter = 5
+        lr = 1.
+
         grid = configure(
             grid,
             {
@@ -43,8 +49,24 @@ class ibm_gestures_comparison_experiment:
                 "overshoot":overshoot,
                 "n_attack_frames":n_attack_frames,
                 "step_size":step_size,
-                "max_iter_deep_fool":max_iter_deep_fool
+                "max_iter_deep_fool":max_iter_deep_fool,
+                "frame_sparsity": frame_sparsity,
+                "lr": lr,
+                "n_iter": n_iter
             },
+        )
+
+        grid = run(
+            grid,
+            marchisio_on_test_set,
+            n_threads=1,
+            store_key="marchisio"
+        )(
+            "{*}",
+            "{frame_sparsity}",
+            "{lr}",
+            "{n_iter}",
+            "{limit}"
         )
 
         grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
