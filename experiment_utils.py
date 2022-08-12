@@ -4,13 +4,13 @@ from dataloader_BMNIST import BMNISTDataLoader
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from attacks import non_prob_fool, prob_fool, SCAR
+from attacks import marchisio, non_prob_fool, prob_fool, SCAR
 from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction, universal_heatmap_attack
 from adversarial_patch import adversarial_patch
 import numpy as np
 
 # - Set device
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # - Set a global seed
 torch.manual_seed(0)
@@ -176,6 +176,26 @@ def universal_heatmap_attack_test_acc(
         **return_dict_universal_attack}
 
     return return_dict
+
+@cachable(dependencies=["model:{architecture}_session_id", "frame_sparsity", "lr", "n_iter", "limit"])
+def marchisio_on_test_set(
+    model,
+    frame_sparsity,
+    lr,
+    n_iter,
+    limit
+):
+    def attack_fn(X0):
+        d = marchisio(
+            net=model["snn"],
+            X0=X0,
+            frame_sparsity=frame_sparsity,
+            lr=lr,
+            n_iter=n_iter
+        )
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
 
 @cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit"])
 def prob_fool_on_test_set(
@@ -353,6 +373,7 @@ def non_prob_fool_on_test_set(
     verbose,
     limit,
     use_snn=False,
+    batch_size=None,
 ):
 
     round_fn_evaluated = get_round_fn(round_fn)
@@ -362,7 +383,7 @@ def non_prob_fool_on_test_set(
     else:
         net = model["ann"]
 
-    def attack_fn(X0):
+    def attack_fn(X0, batch=False):
         d = non_prob_fool(
             max_hamming_distance=max_hamming_distance,
             net=net,
@@ -375,10 +396,14 @@ def non_prob_fool_on_test_set(
             rand_minmax=rand_minmax,
             boost=boost,
             early_stopping=early_stopping,
-            verbose=verbose)
+            verbose=verbose,
+            batch=batch)
         return d
 
-    return evaluate_on_test_set(model, limit, attack_fn)
+    if batch_size is not None:
+        return evaluate_on_test_set_batched(model, limit, attack_fn, batch_size)
+    else:
+        return evaluate_on_test_set(model, limit, attack_fn)
 
 
 @cachable(dependencies=["model:{architecture}_session_id", "max_hamming_distance", "thresh", "early_stopping", "limit"])
@@ -403,9 +428,42 @@ def scar_attack_on_test_set(
 
     return evaluate_on_test_set(model, limit, attack_fn)
 
+def evaluate_on_test_set_batched(model, limit, attack_fn, batch_size):
+    data_loader = get_data_loader_from_model(model, batch_size=batch_size, max_size=np.inf)
+    N_count = 0
+
+    ret = {}
+    ret["success"] = []
+    ret["elapsed_time"] = []
+    ret["L0"] = []
+    ret["n_queries"] = []
+    ret["targets"] = []
+    ret["predicted"] = []
+    ret["predicted_attacked"] = []
+
+    for batch, target in data_loader:
+        if N_count >= limit and limit != -1:
+            break
+        X = batch.to(device)
+        X = X.float()
+        X = torch.clamp(X, 0.0, 1.0)
+        target = target.to(device).int()
+        N_count += X.shape[0]
+
+        d = attack_fn(X, batch=True)
+        d.pop("X_adv")
+        for key in d:
+            if isinstance(d[key], (float,int)):
+                data = X.shape[0] * [d[key]]
+            elif len(d[key]) == X.shape[0]:
+                data = d[key]
+            ret[key].extend(data)
+        ret["targets"].extend([int(t) for t in target])
+
+    return ret
 
 def evaluate_on_test_set(model, limit, attack_fn):
-    data_loader = get_data_loader_from_model(model, batch_size=100, max_size=50)
+    data_loader = get_data_loader_from_model(model, batch_size=1, max_size=50)
     N_count = 0
 
     ret = {}
@@ -458,7 +516,10 @@ def evaluate_on_test_set(model, limit, attack_fn):
                         ret[key].append(ret_f[key])
 
     # - Unravel
-    for key in ret:
-        ret[key] = np.array([a for b in ret[key] for a in b])
+    try:
+        for key in ret:
+            ret[key] = np.array([a for b in ret[key] for a in b])
+    except:
+        return ret
 
     return ret
