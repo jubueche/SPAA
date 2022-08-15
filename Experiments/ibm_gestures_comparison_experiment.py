@@ -35,6 +35,10 @@ class ibm_gestures_comparison_experiment:
         n_iter = 5
         lr = 1.
 
+        # - Liang et al. https://arxiv.org/pdf/2001.01587.pdf
+        n_iter_liang = 50
+        prob_mult = 0.01
+
         grid = configure(
             grid,
             {
@@ -52,8 +56,22 @@ class ibm_gestures_comparison_experiment:
                 "max_iter_deep_fool":max_iter_deep_fool,
                 "frame_sparsity": frame_sparsity,
                 "lr": lr,
-                "n_iter": n_iter
+                "n_iter": n_iter,
+                "n_iter_liang": n_iter_liang,
+                "prob_mult": prob_mult
             },
+        )
+
+        grid = run(
+            grid,
+            liang_on_test_set_v1,
+            n_threads=1,
+            store_key="liang"
+        )(
+            "{*}",
+            "{n_iter_liang}",
+            "{prob_mult}",
+            "{limit}"
         )
 
         grid = run(
@@ -83,22 +101,22 @@ class ibm_gestures_comparison_experiment:
             True,  # - Use SNN
         )
 
-        # grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
-        #     "{*}",
-        #     "{max_hamming_distance}",
-        #     "{lambda_}",
-        #     "{max_iter}",
-        #     "{epsilon}",
-        #     "{overshoot}",
-        #     "{n_attack_frames}",
-        #     "{step_size}",
-        #     "{max_iter_deep_fool}",
-        #     "{verbose}",
-        #     "{limit}",
-        #     True,  # - Use SNN
-        # )
+        grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
+            "{*}",
+            "{max_hamming_distance}",
+            "{lambda_}",
+            "{max_iter}",
+            "{epsilon}",
+            "{overshoot}",
+            "{n_attack_frames}",
+            "{step_size}",
+            "{max_iter_deep_fool}",
+            "{verbose}",
+            "{limit}",
+            True,  # - Use SNN
+        )
 
-        attacks = ["marchisio","sparse_fool"]
+        attacks = ["liang","marchisio","sparse_fool"]
         grid = split_attack_grid(grid, attacks)
 
         grid = run(grid, make_summary, store_key=None)("{*}")

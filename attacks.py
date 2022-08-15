@@ -270,6 +270,53 @@ def prob_fool(
     return_dict["predicted_attacked"] = get_prediction(prob_net, X_adv, mode="non_prob").cpu().numpy()
     return return_dict
 
+def liang(
+    net,
+    X0,
+    n_iter,
+    prob_mult
+):
+    t0 = time.time()
+    y = get_prediction(net, X0, mode="non_prob")
+    loss_fn = torch.nn.CrossEntropyLoss()
+    X_adv = torch.nn.Parameter(X0.clone(), requires_grad=True)
+    X_adv.retain_grad()
+    n_queries = 0
+
+    for _ in range(n_iter):
+        output = get_prediction_raw(net, X_adv, mode="non_prob")
+        loss = loss_fn(output.reshape((1,-1)), y.reshape((-1,)))
+        loss.backward()
+        adv_grad = X_adv.grad
+        adv_grad_norm = adv_grad.abs() / adv_grad.abs().max()
+        bern_samples = torch.bernoulli(adv_grad_norm * prob_mult)
+        signed_masked_grad = (bern_samples * adv_grad).sign()
+        # - Perform the overflow mechanism
+        # 0 - 1 -> -1 -> 0
+        # 1 + 1 -> 2 -> 1
+        # The rest is simple addition. This corresponds to clamping.
+        X_adv = torch.nn.Parameter((X_adv + signed_masked_grad).clamp(0.0,1.0))
+        n_queries += 1
+        predicted_label_x_adv = get_prediction(net, X_adv, mode="non_prob")
+        L0 = (X0-X_adv).abs().sum()
+        print("L0 %d X_adv label %d true %d" % (L0,predicted_label_x_adv,y))
+        if predicted_label_x_adv != y: break
+
+    t1 = time.time()
+    return_dict = {}
+    return_dict["success"] = 1 if not (y == get_prediction(net, X_adv, mode="non_prob")) else 0
+    if return_dict["success"] == 1:
+        print("success")
+    else:
+        print("no success")
+    return_dict["elapsed_time"] = t1 - t0
+    return_dict["X_adv"] = X_adv.detach().cpu().numpy()
+    return_dict["L0"] = int(L0)
+    return_dict["n_queries"] = n_queries
+    return_dict["predicted"] = y.cpu().numpy()
+    return_dict["predicted_attacked"] = get_prediction(net, X_adv, mode="non_prob").cpu().numpy()
+    return return_dict
+
 def marchisio(
     net,
     X0,

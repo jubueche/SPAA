@@ -4,7 +4,7 @@ from dataloader_BMNIST import BMNISTDataLoader
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from datajuicer import cachable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from attacks import marchisio, non_prob_fool, prob_fool, SCAR
+from attacks import liang, marchisio, non_prob_fool, prob_fool, SCAR
 from sparsefool import sparsefool, universal_attack, frame_based_sparsefool, Heatmap, RandomEviction, universal_heatmap_attack
 from adversarial_patch import adversarial_patch
 import numpy as np
@@ -192,6 +192,24 @@ def marchisio_on_test_set(
             frame_sparsity=frame_sparsity,
             lr=lr,
             n_iter=n_iter
+        )
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+@cachable(dependencies=["model:{architecture}_session_id", "n_iter", "prob_mult", "limit"])
+def liang_on_test_set_v1(
+    model,
+    n_iter,
+    prob_mult,
+    limit
+):
+    def attack_fn(X0):
+        d = liang(
+            net=model["snn"],
+            X0=X0,
+            n_iter=n_iter,
+            prob_mult=prob_mult
         )
         return d
 
