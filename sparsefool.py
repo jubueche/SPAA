@@ -100,6 +100,7 @@ def deepfool(
     assert not torch.isnan(grad).any() and not torch.isinf(grad).any(), "found inf or nan"
     if grad.norm() == 0.0:
         print("WARNING Grad norm is zero")
+        return grad, X_adv, n_queries
     grad = grad / (grad.norm() + 1e-10)
     assert not torch.isnan(grad).any() and not torch.isinf(grad).any(), "found inf or nan"
 
@@ -430,6 +431,9 @@ def sparsefool(
             max_iter=max_iter_deep_fool,
             device=device,
         )
+
+        if normal.norm() == 0.0:
+            break
 
         assert not torch.isnan(normal).any() and not torch.isnan(x_adv).any(), "Found NaN"
         x_i = linear_solver(x_i, normal, x_adv, lb, ub)

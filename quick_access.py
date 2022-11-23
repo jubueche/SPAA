@@ -16,9 +16,11 @@ from Experiments import (
     universal_vs_random_experiment,
     visual_universal,
     patches_vary_target_label,
-    visual_patches
+    visual_patches,
+    sparsefool_vs_spikefool
 )
 
+# sparsefool_vs_spikefool.sparsefool_vs_spikefool.visualize()
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
 # nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
 ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 

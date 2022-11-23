@@ -1,6 +1,7 @@
 from architectures import IBMGestures
 from dataloader_IBMGestures import IBMGesturesDataLoader
 from sparsefool import sparsefool
+from attacks import liang
 from datajuicer import run
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -44,9 +45,10 @@ def generate_sample(attack_fn, data_loader, source_label, target_label, num, cla
         X0 = X0.float()
         X0 = X0.to(device)
         X0 = torch.clamp(X0, 0.0, 1.0)
-        target = target.long().to(device)
+        target = int(target.long().to(device))
         return_dict = attack_fn(X0)
         return_dict["X0"] = X0
+        print(class_labels[return_dict["predicted_attacked"]] in target_label,return_dict["predicted"] == target,return_dict["predicted"] != return_dict["predicted_attacked"])
         if (class_labels[return_dict["predicted_attacked"]] in target_label
                 and return_dict["predicted"] == target
                 and return_dict["predicted"] != return_dict["predicted_attacked"]):
@@ -70,7 +72,7 @@ def plot(args):
     dt = sample_len_ms / len(axes)
     time_labels = ["%.1f ms" % (dt*i) for i in range(len(axes))]
     X0 = sample["X0"].squeeze().sum(dim=1)
-    X_adv = sample["X_adv"].squeeze().sum(dim=1)
+    X_adv = torch.tensor(sample["X_adv"]).squeeze().sum(dim=1)
     X_diff = torch.abs(X0-X_adv)
     num_frames_available = len(axes)
     num_frames = X0.shape[0]
@@ -115,20 +117,30 @@ class visual_ibm_experiment:
         step_size = 0.1
         max_iter_deep_fool = 50
 
+        use_sparsefool = True
+
         def attack_fn(X0):
-            d = sparsefool(
-                x_0=X0,
-                net=net,
-                max_hamming_distance=max_hamming_distance,
-                lambda_=lambda_,
-                max_iter=max_iter,
-                epsilon=epsilon,
-                overshoot=overshoot,
-                step_size=step_size,
-                max_iter_deep_fool=max_iter_deep_fool,
-                device=device,
-                verbose=True
-            )
+            if use_sparsefool:
+                d = sparsefool(
+                    x_0=X0,
+                    net=net,
+                    max_hamming_distance=max_hamming_distance,
+                    lambda_=lambda_,
+                    max_iter=max_iter,
+                    epsilon=epsilon,
+                    overshoot=overshoot,
+                    step_size=step_size,
+                    max_iter_deep_fool=max_iter_deep_fool,
+                    device=device,
+                    verbose=True
+                )
+            else:
+                d = liang(
+                    net=net,
+                    X0=X0,
+                    n_iter=50,
+                    prob_mult=0.01
+                )
             return d
 
         source_labels = ["RH Wave", "Air Guitar"]
@@ -176,7 +188,8 @@ class visual_ibm_experiment:
         ) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
-        plt.savefig("Resources/Figures/samples_ibm_gestures.pdf", bbox_inches='tight')
-        plt.savefig("Resources/Figures/samples_ibm_gestures.png", bbox_inches='tight')
+        name = "sparsefool" if use_sparsefool else "liang"
+        plt.savefig("Resources/Figures/%s_samples_ibm_gestures.pdf" % name, bbox_inches='tight')
+        plt.savefig("Resources/Figures/%s_samples_ibm_gestures.png" % name, bbox_inches='tight')
 
         # plt.show(block=False)

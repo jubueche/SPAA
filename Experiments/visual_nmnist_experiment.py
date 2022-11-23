@@ -1,6 +1,7 @@
 from architectures import NMNIST
 from dataloader_NMNIST import NMNISTDataLoader
 from sparsefool import sparsefool
+from attacks import liang
 from datajuicer import run
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -46,28 +47,38 @@ class visual_nmnist_experiment:
         # print("Test accuracy", get_test_acc(data_loader_test, net))
 
         max_hamming_distance = int(1e6)
-        lambda_ = 1.0
-        max_iter = 5
+        lambda_ = 2.0
+        max_iter = 20
         epsilon = 0.0
         overshoot = 0.02
         step_size = 0.2
         max_iter_deep_fool = 50
 
+        use_sparsefool = True
+
         def attack_fn(X0):
             X0 = X0.squeeze()
-            d = sparsefool(
-                x_0=X0,
-                net=net,
-                max_hamming_distance=max_hamming_distance,
-                lambda_=lambda_,
-                max_iter=max_iter,
-                epsilon=epsilon,
-                overshoot=overshoot,
-                step_size=step_size,
-                max_iter_deep_fool=max_iter_deep_fool,
-                device=device,
-                verbose=True
-            )
+            if use_sparsefool:
+                d = sparsefool(
+                    x_0=X0,
+                    net=net,
+                    max_hamming_distance=max_hamming_distance,
+                    lambda_=lambda_,
+                    max_iter=max_iter,
+                    epsilon=epsilon,
+                    overshoot=overshoot,
+                    step_size=step_size,
+                    max_iter_deep_fool=max_iter_deep_fool,
+                    device=device,
+                    verbose=True
+                )
+            else:
+                d = liang(
+                    net=net,
+                    X0=X0,
+                    n_iter=50,
+                    prob_mult=1.0
+                )
             return d
 
         source_labels = ["Two", "Three", "Nine"]
@@ -114,5 +125,6 @@ class visual_nmnist_experiment:
         ) for i in range(len(samples))]
         list(map(plot, sub_axes_samples))
 
-        plt.savefig("Resources/Figures/samples_nmnist.pdf", bbox_inches='tight')
+        name = "sparsefool" if use_sparsefool else "liang"
+        plt.savefig("Resources/Figures/%s_samples_nmnist.pdf" % name, bbox_inches='tight')
         # plt.show(block=False)
