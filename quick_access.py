@@ -22,8 +22,8 @@ from Experiments import (
 
 # sparsefool_vs_spikefool.sparsefool_vs_spikefool.visualize()
 # bmnist_comparison_experiment.bmnist_comparison_experiment.visualize() # C
-# nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # C
-ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # C 
+ibm_gestures_comparison_experiment.ibm_gestures_comparison_experiment.visualize() # CCCC
+nmnist_comparison_experiment.nmnist_comparison_experiment.visualize() # CCCC
 # sparse_fool_lambda_experiment.sparse_fool_lambda_experiment.visualize() # C
 # visual_ibm_experiment.visual_ibm_experiment.visualize() # C
 # visual_nmnist_experiment.visual_nmnist_experiment.visualize() #  C

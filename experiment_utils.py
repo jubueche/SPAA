@@ -197,12 +197,52 @@ def marchisio_on_test_set(
 
     return evaluate_on_test_set(model, limit, attack_fn)
 
+@cachable(dependencies=["model:{architecture}_session_id", "frame_sparsity", "lr", "n_iter", "limit", "iter"])
+def marchisio_on_test_set_v2(
+    model,
+    frame_sparsity,
+    lr,
+    n_iter,
+    limit,
+    iter
+):
+    def attack_fn(X0):
+        d = marchisio(
+            net=model["snn"],
+            X0=X0,
+            frame_sparsity=frame_sparsity,
+            lr=lr,
+            n_iter=n_iter
+        )
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
 @cachable(dependencies=["model:{architecture}_session_id", "n_iter", "prob_mult", "limit"])
 def liang_on_test_set_v1(
     model,
     n_iter,
     prob_mult,
     limit
+):
+    def attack_fn(X0):
+        d = liang(
+            net=model["snn"],
+            X0=X0,
+            n_iter=n_iter,
+            prob_mult=prob_mult
+        )
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
+@cachable(dependencies=["model:{architecture}_session_id", "n_iter", "prob_mult", "limit", "iter"])
+def liang_on_test_set_v2(
+    model,
+    n_iter,
+    prob_mult,
+    limit,
+    iter
 ):
     def attack_fn(X0):
         d = liang(
@@ -249,6 +289,41 @@ def prob_fool_on_test_set(
 
     return evaluate_on_test_set(model, limit, attack_fn)
 
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "N_MC", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit", "iter"])
+def prob_fool_on_test_set_v2(
+    model,
+    N_pgd,
+    N_MC,
+    eps,
+    eps_iter,
+    rand_minmax,
+    norm,
+    max_hamming_distance,
+    boost,
+    early_stopping,
+    verbose,
+    limit,
+    iter
+):
+
+    def attack_fn(X0):
+        d = prob_fool(
+            max_hamming_distance=max_hamming_distance,
+            prob_net=model["prob_net"],
+            P0=X0,
+            eps=eps,
+            eps_iter=eps_iter,
+            N_pgd=N_pgd,
+            N_MC=N_MC,
+            norm=norm,
+            rand_minmax=rand_minmax,
+            boost=boost,
+            early_stopping=early_stopping,
+            verbose=verbose)
+        return d
+
+    return evaluate_on_test_set(model, limit, attack_fn)
+
 def get_round_fn(round_fn):
     assert round_fn in ["round", "stoch_round"], "Unknown rounding function"
     if round_fn == "round":
@@ -257,6 +332,44 @@ def get_round_fn(round_fn):
         round_fn_evaluated = lambda x : (torch.rand(size=x.shape, device=x.device) < x).float()
     return round_fn_evaluated
 
+
+@cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","step_size","max_iter_deep_fool","limit","iter"])
+def sparse_fool_on_test_set_v2(
+    model,
+    max_hamming_distance,
+    lambda_,
+    max_iter,
+    epsilon,
+    overshoot,
+    step_size,
+    max_iter_deep_fool,
+    verbose,
+    limit,
+    use_snn=False,
+    iter=0
+):
+
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    def attack_fn(X0):
+        d = sparsefool(
+            x_0=X0,
+            net=net,
+            max_hamming_distance=max_hamming_distance,
+            lambda_=lambda_,
+            max_iter=max_iter,
+            epsilon=epsilon,
+            overshoot=overshoot,
+            step_size=step_size,
+            max_iter_deep_fool=max_iter_deep_fool,
+            device=device,
+            verbose=verbose
+        )
+        return d
+    return evaluate_on_test_set(model, limit, attack_fn)
 
 @cachable(dependencies=["model:{architecture}_session_id","max_hamming_distance","lambda_","max_iter","epsilon","overshoot","step_size","max_iter_deep_fool","limit"])
 def sparse_fool_on_test_set(
@@ -392,6 +505,54 @@ def non_prob_fool_on_test_set(
     limit,
     use_snn=False,
     batch_size=None,
+):
+
+    round_fn_evaluated = get_round_fn(round_fn)
+
+    if use_snn:
+        net = model["snn"]
+    else:
+        net = model["ann"]
+
+    def attack_fn(X0, batch=False):
+        d = non_prob_fool(
+            max_hamming_distance=max_hamming_distance,
+            net=net,
+            X0=X0,
+            round_fn=round_fn_evaluated,
+            eps=eps,
+            eps_iter=eps_iter,
+            N_pgd=N_pgd,
+            norm=norm,
+            rand_minmax=rand_minmax,
+            boost=boost,
+            early_stopping=early_stopping,
+            verbose=verbose,
+            batch=batch)
+        return d
+
+    if batch_size is not None:
+        return evaluate_on_test_set_batched(model, limit, attack_fn, batch_size)
+    else:
+        return evaluate_on_test_set(model, limit, attack_fn)
+
+@cachable(dependencies=["model:{architecture}_session_id", "N_pgd", "round_fn", "eps", "eps_iter", "rand_minmax", "norm", "max_hamming_distance", "boost", "early_stopping", "limit", "iter"])
+def non_prob_fool_on_test_set_v2(
+    model,
+    N_pgd,
+    round_fn,
+    eps,
+    eps_iter,
+    rand_minmax,
+    norm,
+    max_hamming_distance,
+    boost,
+    early_stopping,
+    verbose,
+    limit,
+    use_snn=False,
+    batch_size=None,
+    iter=0
 ):
 
     round_fn_evaluated = get_round_fn(round_fn)

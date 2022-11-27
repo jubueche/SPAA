@@ -62,21 +62,22 @@ class ibm_gestures_comparison_experiment:
             },
         )
 
-        grid = run(
+        rep_grid_liang = [run(
             grid,
-            liang_on_test_set_v1,
+            liang_on_test_set_v2,
             n_threads=1,
             store_key="liang"
         )(
             "{*}",
             "{n_iter_liang}",
             "{prob_mult}",
-            "{limit}"
-        )
+            "{limit}",
+            iter
+        ) for iter in range(5)]
 
-        grid = run(
+        rep_grid_march = [run(
             grid,
-            marchisio_on_test_set,
+            marchisio_on_test_set_v2,
             n_threads=1,
             store_key="marchisio"
         )(
@@ -84,13 +85,14 @@ class ibm_gestures_comparison_experiment:
             "{frame_sparsity}",
             "{lr}",
             "{n_iter}",
-            "{limit}"
-        )
+            "{limit}",
+            iter
+        ) for iter in range(5)]
 
-        grid = run(grid, sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+        rep_grid_spike_fool_lambda_3 = [run(grid, sparse_fool_on_test_set_v2, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
-            "{lambda_}",
+            3.0,
             "{max_iter}",
             "{epsilon}",
             "{overshoot}",
@@ -99,30 +101,46 @@ class ibm_gestures_comparison_experiment:
             "{verbose}",
             "{limit}",
             True,  # - Use SNN
-        )
+            iter
+        ) for iter in range(5)]
 
-        grid = run(grid, frame_based_sparse_fool_on_test_set, n_threads=1, run_mode="normal", store_key="frame_based_sparse_fool")(
+        rep_grid_spike_fool_lambda_2 = [run(grid, sparse_fool_on_test_set_v2, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
-            "{lambda_}",
+            2.0,
             "{max_iter}",
             "{epsilon}",
             "{overshoot}",
-            "{n_attack_frames}",
             "{step_size}",
             "{max_iter_deep_fool}",
             "{verbose}",
             "{limit}",
             True,  # - Use SNN
-        )
+            iter
+        ) for iter in range(5)]
 
-        attacks = ["liang","marchisio","sparse_fool"]
-        grid = split_attack_grid(grid, attacks)
+        rep_grid_spike_fool_lambda_1 = [run(grid, sparse_fool_on_test_set_v2, n_threads=1, run_mode="normal", store_key="sparse_fool")(
+            "{*}",
+            "{max_hamming_distance}",
+            1.0,
+            "{max_iter}",
+            "{epsilon}",
+            "{overshoot}",
+            "{step_size}",
+            "{max_iter_deep_fool}",
+            "{verbose}",
+            "{limit}",
+            True,  # - Use SNN
+            iter
+        ) for iter in range(5)]
 
-        grid = run(grid, make_summary, store_key=None)("{*}")
+        # attacks = ["liang","marchisio","sparse_fool"]
+        # grid = split_attack_grid(grid, attacks)
 
-        independent_keys = ["attack"]
-        dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
-        reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
+        # grid = run(grid, make_summary, store_key=None)("{*}")
 
-        print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
+        # independent_keys = ["attack"]
+        # dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
+        # reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
+
+        # print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
