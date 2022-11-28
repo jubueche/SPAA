@@ -7,7 +7,7 @@ def visualizer(dim=None):
     return lambda func: lambda grid, independent_keys, dependent_keys, label_dict={}, order=None, **kwargs: _func(func, [grid, independent_keys, dependent_keys, label_dict, dim, order], kwargs)
 
 @visualizer(dim=4)
-def latex(table, decimals=2, bold_order=None):
+def latex(table, decimals=5, bold_order=None):
     shape = table.shape()
     
 
@@ -66,7 +66,7 @@ def latex(table, decimals=2, bold_order=None):
             if not all([all([val =='None' for val in v]) for v in vals]):
                 if bold_order is None:
                     val_bold = [max([float(v[i]) for v in vals]) for i in range(len(vals[0]))]
-                    bold_vals = [[("%.2f" % float(v)) for idx,v in enumerate(vv)] for vv in vals]
+                    bold_vals = [[("%.4f" % float(v)) for idx,v in enumerate(vv)] for vv in vals]
                 else:
                     val_bold = [bold_order[i]([float(v[i]) for v in vals]) for i in range(len(vals[0]))]
                     bold_vals = [[f"{v}" if float(v) != val_bold[idx] else r"\bf{"+str(v)+r"}" for idx,v in enumerate(vv)] for vv in vals]

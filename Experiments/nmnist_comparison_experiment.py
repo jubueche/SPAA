@@ -16,6 +16,26 @@ class nmnist_comparison_experiment:
         grid = nmnist_comparison_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
+        # net = grid[0]["snn"]
+        # from experiment_utils import get_test_acc
+        # data_loader = NMNISTDataLoader()
+        # test_loader = data_loader.get_data_loader("test", mode="snn", shuffle=False)
+        # test_acc = get_test_acc(test_loader, net)
+        # print(f"Test acc {test_acc}")
+
+        # state_dict = net.state_dict()
+        # q_state_dict = {}
+        # for n,v in state_dict.items():
+        #     if "weight" in n:
+        #         scale = (2 ** (8-1) - 1) / v.abs().max()
+        #         v *= scale
+        #         v = v.round() / scale
+        #     q_state_dict[n] = v
+        
+        # net.load_state_dict(q_state_dict)
+
+        # print(f"8 bit test acc is {get_test_acc(test_loader, net)}")
+
         N_pgd = 50
         N_MC = 5
         eps = 1.5
@@ -101,44 +121,6 @@ class nmnist_comparison_experiment:
             iter
         ) for iter in range(5)]
 
-        # rep_grid_prob_fool = [run(
-        #     grid,
-        #     prob_fool_on_test_set_v2,
-        #     n_threads=1,
-        #     store_key="prob_fool",
-        # )(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{N_MC}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        #     iter
-        # ) for iter in range(5)]
-
-        # rep_grid_non_prob_fool = [run(grid, non_prob_fool_on_test_set_v2, n_threads=1, store_key="non_prob_fool")(
-        #     "{*}",
-        #     "{N_pgd}",
-        #     "{round_fn}",
-        #     "{eps}",
-        #     "{eps_iter}",
-        #     "{rand_minmax}",
-        #     "{norm}",
-        #     "{max_hamming_distance}",
-        #     "{boost}",
-        #     "{early_stopping}",
-        #     "{verbose}",
-        #     "{limit}",
-        #     True,
-        #     iter
-        # ) for iter in range(5)]
-
         rep_grid_spike_fool_0_2 = [run(grid, sparse_fool_on_test_set_v2, n_threads=1, run_mode="normal", store_key="sparse_fool")(
             "{*}",
             "{max_hamming_distance}",
@@ -169,13 +151,39 @@ class nmnist_comparison_experiment:
             iter
         ) for iter in range(5)]
 
-        # attacks = ["liang","marchisio","prob_fool","non_prob_fool","sparse_fool"]
-        # grid = split_attack_grid(grid, attacks)
+        def f(d):
+            l0 = [float(el) for el in d["L0"]]
+            d["L0"] = np.array(l0)
+            predicted = [int(el) for el in d["predicted"]]
+            targets = [int(el) for el in d["targets"]]
+            queries = np.array([el for el in d["n_queries"]])
+            network_correct = np.array(predicted) == np.array(targets)
+            success_rate = 100 * np.mean(d["success"][network_correct])
+            d["L0"][~np.array(d["success"]).astype(bool)] = np.iinfo(int).max  # max it could possibly be
+            median_elapsed_time = np.median(d["elapsed_time"][network_correct])
+            median_n_queries = np.median(queries[network_correct])
+            median_L0 = np.median(d["L0"][network_correct])
+            return success_rate, median_elapsed_time, median_n_queries, median_L0
 
-        # grid = run(grid, make_summary, store_key=None)("{*}")
+        grid = [rep_grid_liang, rep_grid_march, rep_grid_spike_fool_0_2]
 
-        # independent_keys = ["attack"]
-        # dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
-        # reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
+        analysed_grid = [gg[0] for g in grid for gg in g]
+        attacks = ["liang","marchisio","sparse_fool"]
+        results_dict = {
+            a: {"success_rate":[], "median_elapsed_time":[], "median_n_queries":[], "median_L0":[]} for a in attacks
+        }
 
-        # print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
+        for attack in attacks:
+            for g in analysed_grid:
+                if attack in g:
+                    success_rate, median_elapsed_time, median_n_queries, median_L0 = f(g[attack])
+                    results_dict[attack]["success_rate"].append(success_rate)
+                    results_dict[attack]["median_elapsed_time"].append(median_elapsed_time)
+                    results_dict[attack]["median_n_queries"].append(median_n_queries)
+                    results_dict[attack]["median_L0"].append(median_L0)
+
+        for attack in attacks:
+            for key in results_dict[attack]:
+                m = np.mean(results_dict[attack][key])
+                s = np.std(results_dict[attack][key])
+                print(f"{attack} {key} {m} {s}")

@@ -16,6 +16,26 @@ class ibm_gestures_comparison_experiment:
         grid = ibm_gestures_comparison_experiment.train_grid()
         grid = run(grid, "train", run_mode="load", store_key="*")("{*}")
 
+        # net = grid[0]["snn"]
+        # from experiment_utils import get_test_acc
+        # data_loader = IBMGesturesDataLoader()
+        # test_loader = data_loader.get_data_loader("test", shuffle=False)
+        # test_acc = get_test_acc(test_loader, net)
+        # print(f"Test acc {test_acc}")
+
+        # state_dict = net.state_dict()
+        # q_state_dict = {}
+        # for n,v in state_dict.items():
+        #     if "weight" in n:
+        #         scale = (2 ** (8-1) - 1) / v.abs().max()
+        #         v *= scale
+        #         v = v.round() / scale
+        #     q_state_dict[n] = v
+        
+        # net.load_state_dict(q_state_dict)
+
+        # print(f"8 bit test acc is {get_test_acc(test_loader, net)}")
+
         max_hamming_distance = int(1e6)
         early_stopping = True
         boost = False
@@ -28,6 +48,13 @@ class ibm_gestures_comparison_experiment:
         step_size = 0.1
         max_iter_deep_fool = 50
         n_attack_frames = 1
+        N_pgd = 50
+        N_MC = 5
+        rand_minmax = 0.01
+        round_fn = "stoch_round"
+        eps = 1.5
+        eps_iter = 0.3
+        norm = 2
 
         # - Marchisio
         # - Hyperparams from https://github.com/albertomarchisio/DVS-Attacks/blob/main/DVS128Gesture/DVS128GestureAttacks.ipynb
@@ -42,6 +69,13 @@ class ibm_gestures_comparison_experiment:
         grid = configure(
             grid,
             {
+                "N_pgd": N_pgd,
+                "N_MC": N_MC,
+                "eps": eps,
+                "eps_iter": eps_iter,
+                "norm": norm,
+                "rand_minmax": rand_minmax,
+                "round_fn": round_fn,
                 "max_hamming_distance": max_hamming_distance,
                 "boost": boost,
                 "early_stopping": early_stopping,
@@ -134,13 +168,75 @@ class ibm_gestures_comparison_experiment:
             iter
         ) for iter in range(5)]
 
-        # attacks = ["liang","marchisio","sparse_fool"]
-        # grid = split_attack_grid(grid, attacks)
+        rep_grid_prob_pgd = run(
+            grid,
+            prob_fool_on_test_set,
+            n_threads=1,
+            store_key="prob_fool",
+        )(
+            "{*}",
+            "{N_pgd}",
+            "{N_MC}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            5000,
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+        )
 
-        # grid = run(grid, make_summary, store_key=None)("{*}")
+        rep_grid_non_prob_pgd = run(grid, non_prob_fool_on_test_set, n_threads=1, store_key="non_prob_fool")(
+            "{*}",
+            "{N_pgd}",
+            "{round_fn}",
+            "{eps}",
+            "{eps_iter}",
+            "{rand_minmax}",
+            "{norm}",
+            5000,
+            "{boost}",
+            "{early_stopping}",
+            "{verbose}",
+            "{limit}",
+            True,
+        )
 
-        # independent_keys = ["attack"]
-        # dependent_keys = ["success_rate","median_elapsed_time","median_n_queries","mean_L0","median_L0"]
-        # reduced = reduce_keys(grid, dependent_keys, reduction=lambda x:x[0], group_by=["attack"])
+        def f(d):
+            l0 = [float(el) for el in d["L0"]]
+            d["L0"] = np.array(l0)
+            predicted = [int(el) for el in d["predicted"]]
+            targets = [int(el) for el in d["targets"]]
+            queries = np.array([el for el in d["n_queries"]])
+            network_correct = np.array(predicted) == np.array(targets)
+            success_rate = 100 * np.mean(d["success"][network_correct])
+            d["L0"][~np.array(d["success"]).astype(bool)] = np.iinfo(int).max  # max it could possibly be
+            median_elapsed_time = np.median(d["elapsed_time"][network_correct])
+            median_n_queries = np.median(queries[network_correct])
+            median_L0 = np.median(d["L0"][network_correct])
+            return success_rate, median_elapsed_time, median_n_queries, median_L0
 
-        # print(latex(reduced, independent_keys, dependent_keys, label_dict=label_dict))
+        grid = [rep_grid_liang, rep_grid_march, rep_grid_spike_fool_lambda_1, [rep_grid_non_prob_pgd], [rep_grid_prob_pgd]]
+
+        analysed_grid = [gg[0] for g in grid for gg in g]
+        attacks = ["liang","marchisio","sparse_fool", "non prob", "prob"]
+        results_dict = {
+            a: {"success_rate":[], "median_elapsed_time":[], "median_n_queries":[], "median_L0":[]} for a in attacks
+        }
+
+        for attack in attacks:
+            for g in analysed_grid:
+                if attack in g:
+                    success_rate, median_elapsed_time, median_n_queries, median_L0 = f(g[attack])
+                    results_dict[attack]["success_rate"].append(success_rate)
+                    results_dict[attack]["median_elapsed_time"].append(median_elapsed_time)
+                    results_dict[attack]["median_n_queries"].append(median_n_queries)
+                    results_dict[attack]["median_L0"].append(median_L0)
+
+        for attack in attacks:
+            for key in results_dict[attack]:
+                m = np.mean(results_dict[attack][key])
+                s = np.std(results_dict[attack][key])
+                print(f"{attack} {key} {m} {s}")
